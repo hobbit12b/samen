@@ -86,8 +86,8 @@
 <div id="overlay">
   <div id="card">
     <h1>Letter Race 3D</h1>
-    <p>Rustige race: pak de juiste kleine letter. De letters worden fonemisch uitgesproken.</p>
-    <p>Bediening: tik links of rechts om van rijstrook te wisselen.</p>
+    <p>Rustige race, pak de juiste kleine letter, de letter wordt fonemisch uitgesproken.</p>
+    <p>Bediening, tik links of rechts om van baan te wisselen.</p>
     <div class="row">
       <button id="startBtn">Start</button>
       <button id="tempoBtn">Tempo: extra rustig</button>
@@ -120,8 +120,8 @@
   let lane = 1;
   const lanes = [-2.2, 0, 2.2];
 
-  // Nog rustiger basis
-  let baseSpeed = 0.035;
+  // Heel rustig, veel leestijd
+  let baseSpeed = 0.030;
   let speed = baseSpeed;
 
   let turboTime = 0;
@@ -143,7 +143,7 @@
 
   let soundOn = true;
 
-  // Fonemische klanken, kort en kleutervriendelijk
+  // Fonemisch, kort, niet de letternaam
   const phoneme = {
     b: "buh",
     g: "guh",
@@ -163,7 +163,6 @@
       if (!("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
       const say = phoneme[letter] || letter;
-
       const u = new SpeechSynthesisUtterance(say);
       u.lang = "nl-NL";
       u.rate = 0.78;
@@ -199,7 +198,6 @@
     setTarget(next);
   }
 
-  // Duidelijkere letter, groter en rustiger
   function makeTextSprite(letter) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -247,8 +245,8 @@
   }
 
   function spawnBatch() {
-    // Veel verder uit elkaar, zodat lezen echt kan
-    const z = lastSpawnZ - 32 - rng() * 16;
+    // Ver uit elkaar, leestijd
+    const z = lastSpawnZ - 34 - rng() * 18;
     lastSpawnZ = z;
 
     const correctLane = Math.floor(rng() * 3);
@@ -262,25 +260,36 @@
     }
   }
 
+  function setStatus(emoji) { uiStatus.textContent = emoji; }
+  function updateScore() { uiScore.textContent = `Score: ${score}`; }
+
+  // Auto textures
+  function setCarTexture(key) {
+    if (!car || !car.userData || !car.userData.plane) return;
+    const t = car.userData.tex[key];
+    if (!t) return;
+    car.userData.plane.material.map = t;
+    car.userData.plane.material.needsUpdate = true;
+  }
+
   function setupThree() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0b0f14, 12, 120);
+    scene.fog = new THREE.Fog(0x0b0f14, 12, 140);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     document.body.appendChild(renderer.domElement);
 
-    // Minder perspectief: Orthographic camera
+    // Orthographic camera, dus minder perspectief, beter leesbaar
     const aspect = window.innerWidth / window.innerHeight;
-    const viewSize = 10.5;
+    const viewSize = 10.8;
     camera = new THREE.OrthographicCamera(
       -viewSize * aspect, viewSize * aspect,
       viewSize, -viewSize,
-      0.1, 300
+      0.1, 400
     );
 
-    // Bijna top down, maar net genoeg diepte om 3D te voelen
     camera.position.set(0, 16, 12);
     camera.lookAt(0, 0.8, -18);
 
@@ -291,17 +300,17 @@
     dir.position.set(6, 12, 6);
     scene.add(dir);
 
-    const roadGeom = new THREE.PlaneGeometry(9, 520);
+    const roadGeom = new THREE.PlaneGeometry(9, 620);
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x111a24, roughness: 0.95, metalness: 0.0 });
     road = new THREE.Mesh(roadGeom, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.position.z = -190;
+    road.position.z = -220;
     scene.add(road);
 
-    const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 4.8);
+    const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 5.2);
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0 });
 
-    for (let i = 0; i < 34; i++) {
+    for (let i = 0; i < 40; i++) {
       const a = new THREE.Mesh(lineGeom, lineMat);
       a.position.set(-1.1, 0.02, -i * 16);
       scene.add(a);
@@ -313,39 +322,51 @@
       laneMarks.push(b);
     }
 
-    const carGroup = new THREE.Group();
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.55, 2.2),
-      new THREE.MeshStandardMaterial({ color: 0x2fd0ff, roughness: 0.35, metalness: 0.2 })
-    );
-    body.position.y = 0.5;
-    carGroup.add(body);
+    // Auto, jouw plaatjes
+    const texLoader = new THREE.TextureLoader();
+    const carTex = {
+      straight: texLoader.load("./car_straight.png"),
+      left: texLoader.load("./car_left.png"),
+      right: texLoader.load("./car_right.png"),
+    };
 
-    const top = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 0.38, 1.0),
-      new THREE.MeshStandardMaterial({ color: 0x1e2a36, roughness: 0.6, metalness: 0.1 })
-    );
-    top.position.set(0, 0.82, -0.1);
-    carGroup.add(top);
-
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.95, metalness: 0.0 });
-    const wheelGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 18);
-    const offsets = [
-      [-0.6, 0.25, 0.75],
-      [ 0.6, 0.25, 0.75],
-      [-0.6, 0.25,-0.75],
-      [ 0.6, 0.25,-0.75]
-    ];
-    for (const [x,y,z] of offsets) {
-      const w = new THREE.Mesh(wheelGeom, wheelMat);
-      w.rotation.z = Math.PI / 2;
-      w.position.set(x,y,z);
-      carGroup.add(w);
+    for (const k of Object.keys(carTex)) {
+      carTex[k].colorSpace = THREE.SRGBColorSpace;
+      carTex[k].anisotropy = 8;
     }
+
+    const carGroup = new THREE.Group();
+
+    const carPlaneGeom = new THREE.PlaneGeometry(2.8, 2.8);
+    const carPlaneMat = new THREE.MeshBasicMaterial({
+      map: carTex.straight,
+      transparent: true
+    });
+
+    const carPlane = new THREE.Mesh(carPlaneGeom, carPlaneMat);
+    carPlane.position.set(0, 1.15, 0);
+    carPlane.rotation.x = -0.22;
+    carGroup.add(carPlane);
+
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(1.05, 26),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.02;
+    carGroup.add(shadow);
 
     car = carGroup;
     car.position.set(lanes[lane], 0, 2.2);
     scene.add(car);
+
+    car.userData = {
+      plane: carPlane,
+      tex: carTex,
+      blinkFrames: 0,
+      wobbleFrames: 0,
+      wobbleDir: 0
+    };
 
     setTarget(activeLetters[0]);
     for (let i = 0; i < 3; i++) spawnBatch();
@@ -358,7 +379,7 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     const aspect = window.innerWidth / window.innerHeight;
-    const viewSize = 10.5;
+    const viewSize = 10.8;
     camera.left = -viewSize * aspect;
     camera.right = viewSize * aspect;
     camera.top = viewSize;
@@ -366,11 +387,19 @@
     camera.updateProjectionMatrix();
   }
 
-  function setStatus(emoji) { uiStatus.textContent = emoji; }
-  function updateScore() { uiScore.textContent = `Score: ${score}`; }
-
   function moveLane(dir) {
+    const prev = lane;
     lane = Math.max(0, Math.min(2, lane + dir));
+    if (lane === prev) return;
+
+    // Heel kort sturen tonen, links auto 2, rechts auto 3
+    const blinkKey = dir < 0 ? "left" : "right";
+    car.userData.blinkFrames = 8;
+    setCarTexture(blinkKey);
+
+    // Mini wiebel, rustig, niet druk
+    car.userData.wobbleFrames = 14;
+    car.userData.wobbleDir = dir < 0 ? -1 : 1;
   }
 
   function checkCollisions() {
@@ -384,13 +413,13 @@
         const ok = p.userData.letter === target;
         if (ok) {
           score += 1;
-          turboTime = 70;
+          turboTime = 75;
           slowTime = 0;
           setStatus("😄");
           beep(true);
           pickNewTarget();
         } else {
-          slowTime = 90;
+          slowTime = 95;
           turboTime = 0;
           setStatus("😬");
           beep(false);
@@ -406,16 +435,36 @@
   function tick() {
     if (!running) return;
 
+    // stuur flits
+    if (car?.userData?.blinkFrames > 0) {
+      car.userData.blinkFrames -= 1;
+      if (car.userData.blinkFrames === 0) {
+        setCarTexture("straight");
+      }
+    }
+
+    // wiebel, kort en subtiel
+    if (car?.userData?.wobbleFrames > 0) {
+      car.userData.wobbleFrames -= 1;
+      const t = car.userData.wobbleFrames / 14;
+      const wobble = Math.sin((1 - t) * Math.PI) * 0.14 * car.userData.wobbleDir;
+      car.rotation.z = wobble;
+      car.rotation.y = wobble * 0.25;
+    } else {
+      car.rotation.z += (0 - car.rotation.z) * 0.18;
+      car.rotation.y += (0 - car.rotation.y) * 0.18;
+    }
+
     const laneX = lanes[lane];
-    car.position.x += (laneX - car.position.x) * 0.12;
+    car.position.x += (laneX - car.position.x) * 0.11;
 
     let targetSpeed = baseSpeed;
     if (turboTime > 0) {
       turboTime -= 1;
-      targetSpeed = baseSpeed * 1.15;
+      targetSpeed = baseSpeed * 1.12;
     } else if (slowTime > 0) {
       slowTime -= 1;
-      targetSpeed = baseSpeed * 0.60;
+      targetSpeed = baseSpeed * 0.58;
     } else {
       setStatus("🙂");
     }
@@ -423,7 +472,7 @@
 
     for (const l of laneMarks) {
       l.position.z += speed * 10;
-      if (l.position.z > 10) l.position.z = -560;
+      if (l.position.z > 10) l.position.z = -660;
     }
 
     for (const p of pickups) {
@@ -439,7 +488,6 @@
 
     checkCollisions();
 
-    // Camera volgt subtiel, zonder perspectief verandering
     camera.position.x += (car.position.x - camera.position.x) * 0.06;
     camera.lookAt(camera.position.x, 0.8, -18);
 
@@ -479,12 +527,12 @@
   document.getElementById("startBtn").addEventListener("click", startGame);
 
   document.getElementById("tempoBtn").addEventListener("click", (e) => {
-    // Toggle tussen extra rustig en superslow
-    if (baseSpeed > 0.028) {
-      baseSpeed = 0.024;
+    // Toggle, extra rustig, super rustig
+    if (baseSpeed > 0.024) {
+      baseSpeed = 0.020;
       e.target.textContent = "Tempo: super rustig";
     } else {
-      baseSpeed = 0.035;
+      baseSpeed = 0.030;
       e.target.textContent = "Tempo: extra rustig";
     }
   });
