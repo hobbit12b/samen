@@ -55,20 +55,14 @@
   import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
   const errBox = document.getElementById("err");
-  function showErr(msg) {
-    errBox.style.display = "block";
-    errBox.textContent = msg;
-  }
-
-  window.addEventListener("error", (e) => {
-    showErr("Er ging iets mis:\n" + (e?.message || e));
-  });
+  function showErr(msg) { errBox.style.display = "block"; errBox.textContent = msg; }
+  window.addEventListener("error", (e) => showErr("Er ging iets mis:\n" + (e?.message || e)));
 
   let scene, camera, renderer;
 
   let car, lane = 1;
   const laneOffsets = [-2.2, 0, 2.2];
-  const carZ = 2.2;
+  const carZ = 2.4;
 
   let baseSpeed = 0.026;
   let speed = baseSpeed;
@@ -78,7 +72,7 @@
   let score = 0;
 
   let pickups = [];
-  let lastSpawnZ = -30;
+  let lastSpawnZ = -26;
 
   const uiBig = document.getElementById("bigLetter");
   const uiScore = document.getElementById("score");
@@ -90,152 +84,210 @@
     target = String(l).toLowerCase();
     uiBig.textContent = target;
   }
-
   function pickNewTarget() {
     setTarget(activeLetters[Math.floor(rng() * activeLetters.length)]);
   }
-
   function updateScore() {
     uiScore.textContent = "Score: " + score;
   }
 
-  // Weg als glad lint
-  let roadMesh = null;
-  let roadGeom = null;
-  let roadTexture = null;
-
+  // Weg als echt lint met constante breedte
   const ROAD = {
     width: 12.0,
-    length: 320.0,
-    segZ: 280,
+    halfW: 6.0,
+    zNear: 10,     // dicht bij camera
+    zFar: -170,    // ver weg
+    segments: 140, // hoe hoger, hoe gladder
+    phase: 0,
 
-    phase: 0.0,
+    // bocht gedrag: meestal recht, soms een bocht die even aanhoudt
+    gatePeriod: 520,
+    gateThreshold: 0.70,
+    gateSharpness: 12,
 
-    // meestal recht, af en toe een bocht
-    turnAmp: 3.4,
-    turnPeriod: 240.0,
+    // bocht vorm tijdens gate
+    turnAmp: 3.6,
+    turnPeriod: 260,
 
-    // bocht activator, maakt dat bochten soms wel en soms niet “aan” staan
-    gatePeriod: 420.0,
-    gateSharpness: 10.0,
-
-    // extra kleine variatie, heel subtiel
-    microAmp: 0.9,
-    microPeriod: 110.0
+    // klein beetje leven, heel subtiel
+    microAmp: 0.6,
+    microPeriod: 120
   };
 
   function smoothStep(t) { return t * t * (3 - 2 * t); }
 
   function gateValue(z) {
-    // waarde 0 tot 1, meestal 0, af en toe 1
     const x = ((z + ROAD.phase) / ROAD.gatePeriod) * Math.PI * 2;
-    const s = (Math.sin(x) + 1) * 0.5; // 0..1
-    // maak hem “meer uit dan aan”
-    const t = THREE.MathUtils.clamp((s - 0.62) * ROAD.gateSharpness, 0, 1);
+    const s = (Math.sin(x) + 1) * 0.5;
+    const t = THREE.MathUtils.clamp((s - ROAD.gateThreshold) * ROAD.gateSharpness, 0, 1);
     return smoothStep(t);
   }
 
-  function trackOffsetX(z) {
-    const gate = gateValue(z);
-
-    const main = ROAD.turnAmp * Math.sin(((z + ROAD.phase) / ROAD.turnPeriod) * Math.PI * 2) * gate;
-    const micro = ROAD.microAmp * Math.sin(((z + ROAD.phase) / ROAD.microPeriod) * Math.PI * 2) * (gate * 0.35);
-
+  function centerX(z) {
+    const g = gateValue(z);
+    const main = ROAD.turnAmp * Math.sin(((z + ROAD.phase) / ROAD.turnPeriod) * Math.PI * 2) * g;
+    const micro = ROAD.microAmp * Math.sin(((z + ROAD.phase) / ROAD.microPeriod) * Math.PI * 2) * (g * 0.35);
     return main + micro;
   }
 
+  function centerDeriv(z) {
+    const dz = 0.35;
+    return (centerX(z + dz) - centerX(z - dz)) / (2 * dz);
+  }
+
   function laneXAtZ(laneIndex, z) {
-    return trackOffsetX(z) + laneOffsets[laneIndex];
+    return centerX(z) + laneOffsets[laneIndex];
   }
 
-  function buildRoadTexture() {
-    const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 1024;
-    const ctx = c.getContext("2d");
+  // Road geometry (buffer) met constante breedte
+  let roadMesh, roadGeom, roadPos;
+  let edgeMesh, edgeGeom, edgePos;
+  let dashMesh, dashGeom, dashPos;
 
-    ctx.fillStyle = "#111a24";
-    ctx.fillRect(0, 0, c.width, c.height);
+  function buildRoad() {
+    const seg = ROAD.segments;
+    const vCount = (seg + 1) * 2;
 
-    // zijranden
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.fillRect(40, 0, 6, c.height);
-    ctx.fillRect(c.width - 46, 0, 6, c.height);
+    // Road surface
+    roadGeom = new THREE.BufferGeometry();
+    roadPos = new Float32Array(vCount * 3);
+    const roadUv = new Float32Array(vCount * 2);
+    const roadIdx = [];
 
-    // midden streep
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    const mid = Math.floor(c.width / 2);
-    for (let y = 0; y < c.height; y += 120) ctx.fillRect(mid - 4, y + 20, 8, 60);
+    for (let i = 0; i <= seg; i++) {
+      const t = i / seg;
+      // z van dichtbij naar ver weg
+      const z = THREE.MathUtils.lerp(ROAD.zNear, ROAD.zFar, t);
 
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(1, 8);
-    tex.anisotropy = 8;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
+      // placeholder, vullen we in updateRoad()
+      const li = i * 2;
+      roadUv[(li + 0) * 2 + 0] = 0; roadUv[(li + 0) * 2 + 1] = t * 6;
+      roadUv[(li + 1) * 2 + 0] = 1; roadUv[(li + 1) * 2 + 1] = t * 6;
 
-  function cacheRoadBase() {
-    const pos = roadGeom.attributes.position;
-    const baseX = new Float32Array(pos.count);
-    const baseZ = new Float32Array(pos.count);
-
-    for (let i = 0; i < pos.count; i++) {
-      const ix = i * 3;
-      baseX[i] = pos.array[ix + 0];
-      baseZ[i] = pos.array[ix + 2];
+      if (i < seg) {
+        const a = li;
+        const b = li + 1;
+        const c = li + 2;
+        const d = li + 3;
+        roadIdx.push(a, c, b, b, c, d);
+      }
     }
 
-    roadGeom.userData.baseX = baseX;
-    roadGeom.userData.baseZ = baseZ;
-  }
-
-  function bendRoad() {
-    const pos = roadGeom.attributes.position;
-    const arr = pos.array;
-
-    const baseX = roadGeom.userData.baseX;
-    const baseZ = roadGeom.userData.baseZ;
-
-    for (let i = 0; i < pos.count; i++) {
-      const ix = i * 3;
-
-      const zLocal = baseZ[i];
-      const zWorld = zLocal + roadMesh.position.z;
-
-      const off = trackOffsetX(zWorld);
-
-      arr[ix + 0] = baseX[i] + off;
-      arr[ix + 1] = 0; // geen banking, weg blijft vlak
-    }
-
-    pos.needsUpdate = true;
+    roadGeom.setAttribute("position", new THREE.BufferAttribute(roadPos, 3));
+    roadGeom.setAttribute("uv", new THREE.BufferAttribute(roadUv, 2));
+    roadGeom.setIndex(roadIdx);
     roadGeom.computeVertexNormals();
-  }
 
-  function buildRoadMesh() {
-    roadTexture = buildRoadTexture();
-
-    roadGeom = new THREE.PlaneGeometry(ROAD.width, ROAD.length, 1, ROAD.segZ);
-    roadGeom.rotateX(-Math.PI / 2);
-
-    cacheRoadBase();
-
-    const mat = new THREE.MeshStandardMaterial({
-      map: roadTexture,
+    const roadMat = new THREE.MeshStandardMaterial({
+      color: 0x111a24,
       roughness: 0.95,
       metalness: 0.0
     });
-
-    roadMesh = new THREE.Mesh(roadGeom, mat);
-
-    // Cruciaal: weg ligt nu onder de auto
-    // Range is position.z ± length/2, dus dit moet carZ omvatten
-    roadMesh.position.set(0, 0, -ROAD.length * 0.35);
-
+    roadMesh = new THREE.Mesh(roadGeom, roadMat);
     scene.add(roadMesh);
-    bendRoad();
+
+    // Edge lines, links en rechts
+    edgeGeom = new THREE.BufferGeometry();
+    edgePos = new Float32Array((seg + 1) * 2 * 3); // 2 lijnen, elk seg+1 punten
+    edgeGeom.setAttribute("position", new THREE.BufferAttribute(edgePos, 3));
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x6f7a86, transparent: true, opacity: 0.55 });
+    edgeMesh = new THREE.LineSegments(edgeGeom, edgeMat);
+    scene.add(edgeMesh);
+
+    // Center dash
+    dashGeom = new THREE.BufferGeometry();
+    // aantal dash segmenten, we tekenen korte lijnstukjes
+    const dashCount = 34;
+    dashPos = new Float32Array(dashCount * 2 * 3);
+    dashGeom.setAttribute("position", new THREE.BufferAttribute(dashPos, 3));
+    const dashMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.65 });
+    dashMesh = new THREE.LineSegments(dashGeom, dashMat);
+    scene.add(dashMesh);
+
+    updateRoad();
+  }
+
+  function updateRoad() {
+    const seg = ROAD.segments;
+    const halfW = ROAD.halfW;
+
+    // Road surface vertices
+    for (let i = 0; i <= seg; i++) {
+      const t = i / seg;
+      const z = THREE.MathUtils.lerp(ROAD.zNear, ROAD.zFar, t);
+
+      const cx = centerX(z);
+      const d = centerDeriv(z);
+      // normal in xz vlak (perpendiculair aan richting)
+      const invLen = 1 / Math.sqrt(1 + d * d);
+      const nx = invLen;
+      const nz = -d * invLen;
+
+      const lx = cx - nx * halfW;
+      const lz = z - nz * halfW;
+      const rx = cx + nx * halfW;
+      const rz = z + nz * halfW;
+
+      const li = i * 2;
+      roadPos[(li + 0) * 3 + 0] = lx;
+      roadPos[(li + 0) * 3 + 1] = 0;
+      roadPos[(li + 0) * 3 + 2] = lz;
+
+      roadPos[(li + 1) * 3 + 0] = rx;
+      roadPos[(li + 1) * 3 + 1] = 0;
+      roadPos[(li + 1) * 3 + 2] = rz;
+
+      // Edge lines positions (LineSegments needs pairs)
+      // We build two polylines as segments: (i) to (i+1)
+      if (i < seg) {
+        const nextT = (i + 1) / seg;
+        const z2 = THREE.MathUtils.lerp(ROAD.zNear, ROAD.zFar, nextT);
+        const cx2 = centerX(z2);
+        const d2 = centerDeriv(z2);
+        const invLen2 = 1 / Math.sqrt(1 + d2 * d2);
+        const nx2 = invLen2;
+        const nz2 = -d2 * invLen2;
+
+        const lx2 = cx2 - nx2 * halfW;
+        const lz2 = z2 - nz2 * halfW;
+        const rx2 = cx2 + nx2 * halfW;
+        const rz2 = z2 + nz2 * halfW;
+
+        // left edge segment
+        const eBase = i * 2 * 3;
+        edgePos[eBase + 0] = lx;  edgePos[eBase + 1] = 0.03; edgePos[eBase + 2] = lz;
+        edgePos[eBase + 3] = lx2; edgePos[eBase + 4] = 0.03; edgePos[eBase + 5] = lz2;
+
+        // right edge segment
+        const eBaseR = (seg * 2 * 3) + (i * 2 * 3);
+        edgePos[eBaseR + 0] = rx;  edgePos[eBaseR + 1] = 0.03; edgePos[eBaseR + 2] = rz;
+        edgePos[eBaseR + 3] = rx2; edgePos[eBaseR + 4] = 0.03; edgePos[eBaseR + 5] = rz2;
+      }
+    }
+
+    roadGeom.attributes.position.needsUpdate = true;
+    roadGeom.computeVertexNormals();
+
+    edgeGeom.attributes.position.needsUpdate = true;
+
+    // Center dash, korte segmenten met vaste spacing
+    const dashCount = 34;
+    const dashLen = 3.0;
+    const gap = 4.0;
+    let zStart = ROAD.zNear - 2;
+
+    for (let i = 0; i < dashCount; i++) {
+      const zA = zStart - i * (dashLen + gap);
+      const zB = zA - dashLen;
+
+      const xA = centerX(zA);
+      const xB = centerX(zB);
+
+      const di = i * 2 * 3;
+      dashPos[di + 0] = xA; dashPos[di + 1] = 0.05; dashPos[di + 2] = zA;
+      dashPos[di + 3] = xB; dashPos[di + 4] = 0.05; dashPos[di + 5] = zB;
+    }
+    dashGeom.attributes.position.needsUpdate = true;
   }
 
   // Letters
@@ -245,11 +297,11 @@
     canvas.height = 256;
     const ctx = canvas.getContext("2d");
 
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(0,0,256,256);
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    ctx.fillRect(0, 0, 256, 256);
 
     ctx.fillStyle = "rgba(255,255,255,0.22)";
-    ctx.fillRect(20,20,216,216);
+    ctx.fillRect(20, 20, 216, 216);
 
     ctx.font = "900 140px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.textAlign = "center";
@@ -259,6 +311,7 @@
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.anisotropy = 8;
+
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
     const sprite = new THREE.Sprite(mat);
     sprite.scale.set(1.25, 1.25, 1);
@@ -311,7 +364,7 @@
 
   function setupThree() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0b0f14, 12, 220);
+    scene.fog = new THREE.Fog(0x0b0f14, 18, 230);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setClearColor(0x0b0f14, 1);
@@ -319,7 +372,7 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     document.body.appendChild(renderer.domElement);
 
-    // Orthographic camera, maar met juiste framing zodat weg onderin zichtbaar is
+    // Orthographic camera, rustig en duidelijk
     const aspect = window.innerWidth / window.innerHeight;
     const viewSize = 12.0;
     camera = new THREE.OrthographicCamera(
@@ -329,38 +382,23 @@
     );
 
     camera.position.set(0, 18, 18);
-    camera.lookAt(0, 0.6, -40);
+    camera.lookAt(0, 0.6, -60);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x1b2430, 1.0));
     const dir = new THREE.DirectionalLight(0xffffff, 1.05);
     dir.position.set(6, 14, 6);
     scene.add(dir);
 
-    buildRoadMesh();
+    buildRoad();
 
-    // Auto textures, met duidelijke foutmelding als ze niet laden
+    // Auto textures
     const texLoader = new THREE.TextureLoader();
     texLoader.setCrossOrigin("anonymous");
 
     const carTex = {
-      straight: texLoader.load(
-        "./car_straight.png",
-        undefined,
-        undefined,
-        () => showErr("Kan car_straight.png niet laden. Staat het bestand echt naast index.html, met exact deze naam?")
-      ),
-      left: texLoader.load(
-        "./car_left.png",
-        undefined,
-        undefined,
-        () => showErr("Kan car_left.png niet laden. Controleer bestandsnaam en map.")
-      ),
-      right: texLoader.load(
-        "./car_right.png",
-        undefined,
-        undefined,
-        () => showErr("Kan car_right.png niet laden. Controleer bestandsnaam en map.")
-      ),
+      straight: texLoader.load("./car_straight.png", undefined, undefined, () => showErr("Kan car_straight.png niet laden. Staat het bestand naast index.html, exact zo gespeld?")),
+      left: texLoader.load("./car_left.png", undefined, undefined, () => showErr("Kan car_left.png niet laden. Controleer bestandsnaam en map.")),
+      right: texLoader.load("./car_right.png", undefined, undefined, () => showErr("Kan car_right.png niet laden. Controleer bestandsnaam en map."))
     };
 
     for (const k of Object.keys(carTex)) {
@@ -370,14 +408,10 @@
 
     const carGroup = new THREE.Group();
 
-    const carPlaneGeom = new THREE.PlaneGeometry(3.0, 3.0);
-    const carPlaneMat = new THREE.MeshBasicMaterial({
-      map: carTex.straight,
-      transparent: true,
-      color: 0xffffff
-    });
-
-    const carPlane = new THREE.Mesh(carPlaneGeom, carPlaneMat);
+    const carPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.0, 3.0),
+      new THREE.MeshBasicMaterial({ map: carTex.straight, transparent: true, color: 0xffffff })
+    );
     carPlane.position.set(0, 1.15, 0);
     carPlane.rotation.x = -0.22;
     carGroup.add(carPlane);
@@ -392,7 +426,7 @@
 
     car = carGroup;
     car.position.set(laneXAtZ(lane, carZ), 0, carZ);
-    car.rotation.set(0,0,0); // auto blijft recht
+    car.rotation.set(0, 0, 0);
     scene.add(car);
 
     car.userData = { plane: carPlane, tex: carTex, blinkFrames: 0 };
@@ -405,7 +439,6 @@
 
   function onResize() {
     if (!renderer || !camera) return;
-
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     const aspect = window.innerWidth / window.innerHeight;
@@ -424,7 +457,7 @@
 
     const key = dir < 0 ? "left" : "right";
     setCarTexture(key);
-    car.userData.blinkFrames = 28;
+    car.userData.blinkFrames = 26;
   }
 
   function checkCollisions() {
@@ -449,28 +482,23 @@
   }
 
   function tick() {
-    // snelheid
     speed += (baseSpeed - speed) * 0.06;
     const forward = speed * 10;
 
-    // weg “scrolt” en bochten lopen door, maar meestal recht
     ROAD.phase += forward;
 
-    if (roadTexture) roadTexture.offset.y = (roadTexture.offset.y + forward * 0.006) % 1;
-    if (roadGeom && roadMesh) bendRoad();
+    updateRoad();
 
-    // auto alleen naar rijstrook, geen meedraaien
+    // Auto alleen naar rijstrook, geen meedraaien
     const desiredX = laneXAtZ(lane, carZ);
     car.position.x += (desiredX - car.position.x) * 0.11;
-    car.rotation.set(0,0,0);
+    car.rotation.set(0, 0, 0);
 
-    // auto sprite wissel even vasthouden
     if (car.userData.blinkFrames > 0) {
       car.userData.blinkFrames -= 1;
       if (car.userData.blinkFrames === 0) setCarTexture("straight");
     }
 
-    // pickups bewegen en volgen de weg
     for (const p of pickups) {
       p.position.z += forward;
       p.position.x = laneXAtZ(p.userData.laneIndex, p.position.z);
@@ -496,7 +524,6 @@
     tick();
   }
 
-  // Controls
   document.getElementById("startBtn").addEventListener("click", startGame);
 
   document.getElementById("tempoBtn").addEventListener("click", (e) => {
