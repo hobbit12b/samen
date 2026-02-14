@@ -24,18 +24,17 @@
       user-select: none;
     }
     #targetLetter {
-      font-size: 22px; font-weight: 800; letter-spacing: 0.5px;
+      font-size: 18px; font-weight: 800; letter-spacing: 0.2px;
       display:flex; align-items:center; gap:10px;
     }
     #bigLetter {
       width: 44px; height: 44px; border-radius: 12px;
       background: rgba(255,255,255,0.16);
       display:flex; align-items:center; justify-content:center;
-      font-size: 26px; font-weight: 900;
+      font-size: 22px; font-weight: 900;
+      text-transform: lowercase;
     }
-    #status {
-      font-size: 18px; font-weight: 800;
-    }
+    #status { font-size: 18px; font-weight: 800; }
     #help {
       position: fixed; left: 12px; right: 12px; bottom: 12px;
       display:flex; justify-content: space-between; gap: 10px;
@@ -90,13 +89,12 @@
 <div id="overlay">
   <div id="card">
     <h1>Letter Race 3D</h1>
-    <p>Pak onderweg de juiste letter om turbo te krijgen.</p>
+    <p>Pak onderweg de juiste kleine letter om rustig door te rijden.</p>
     <p>Bediening: tik links of rechts om van rijstrook te wisselen.</p>
-    <p>Tip: begin met 3 letters, later voeg je er meer toe.</p>
     <div class="row">
       <button id="startBtn">Start</button>
-      <button id="lettersEasyBtn">Letters: M, A, S</button>
-      <button id="lettersAllBtn">Letters: A t m Z</button>
+      <button id="slowBtn">Tempo: extra rustig</button>
+      <button id="normalBtn">Tempo: rustig</button>
       <button id="soundBtn">Geluid: aan</button>
     </div>
   </div>
@@ -104,7 +102,7 @@
 
 <div id="ui">
   <div class="pill" id="targetLetter">
-    <div id="bigLetter">M</div>
+    <div id="bigLetter">b</div>
     <div>Doelletter</div>
   </div>
   <div class="pill">
@@ -122,17 +120,21 @@
   import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
   let scene, camera, renderer;
-  let car, road, lights = [];
-  let lane = 0;
+  let car, road, laneMarks = [];
+  let lane = 1;
   const lanes = [-2.2, 0, 2.2];
-  let speed = 0.16;
-  let baseSpeed = 0.16;
+
+  // Kleutertempo
+  let baseSpeed = 0.060;     // rustig
+  let speed = baseSpeed;
+
+  // Zachte effecten
   let turboTime = 0;
   let slowTime = 0;
 
   let pickups = [];
-  let activeLetters = ["M","A","S"];
-  let target = "M";
+  let activeLetters = ["b","g","v","m","z","h","k","l","s","w"];
+  let target = "b";
   let score = 0;
 
   let running = false;
@@ -147,12 +149,14 @@
   let soundOn = true;
 
   function speak(text) {
+    if (!soundOn) return;
     try {
       if (!("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "nl-NL";
-      u.rate = 0.9;
+      u.rate = 0.85;
+      u.pitch = 1.0;
       window.speechSynthesis.speak(u);
     } catch {}
   }
@@ -164,17 +168,17 @@
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = "sine";
-      o.frequency.value = ok ? 720 : 190;
-      g.gain.value = 0.08;
+      o.frequency.value = ok ? 520 : 220;
+      g.gain.value = 0.06;
       o.connect(g);
       g.connect(ctx.destination);
       o.start();
-      setTimeout(() => { o.stop(); ctx.close(); }, ok ? 90 : 140);
+      setTimeout(() => { o.stop(); ctx.close(); }, ok ? 90 : 130);
     } catch {}
   }
 
   function setTarget(newTarget) {
-    target = newTarget;
+    target = String(newTarget).toLowerCase();
     uiBig.textContent = target;
     speak(`Pak de ${target}`);
   }
@@ -184,29 +188,31 @@
     setTarget(next);
   }
 
+  // Kleine letters op de pickups
   function makeTextSprite(letter) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 256;
     const ctx = canvas.getContext("2d");
 
-    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
     ctx.fillRect(0,0,256,256);
 
-    ctx.fillStyle = "rgba(255,255,255,0.22)";
-    ctx.fillRect(18,18,220,220);
+    ctx.fillStyle = "rgba(255,255,255,0.20)";
+    ctx.fillRect(22,22,212,212);
 
-    ctx.font = "900 150px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    // Kleinere letter, duidelijk leesbaar
+    ctx.font = "900 110px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
-    ctx.fillText(letter, 128, 132);
+    ctx.fillText(String(letter).toLowerCase(), 128, 136);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.anisotropy = 8;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.1, 1.1, 1);
+    sprite.scale.set(1.05, 1.05, 1);
     return sprite;
   }
 
@@ -214,7 +220,7 @@
     const group = new THREE.Group();
 
     const baseGeom = new THREE.BoxGeometry(1.0, 0.6, 1.0);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.35, metalness: 0.25 });
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.45, metalness: 0.20 });
     const base = new THREE.Mesh(baseGeom, baseMat);
     base.position.y = 0.35;
     group.add(base);
@@ -224,35 +230,34 @@
     group.add(sprite);
 
     group.position.set(lanes[laneIndex], 0, z);
-    group.userData = { letter, laneIndex, hit: false };
+    group.userData = { letter: String(letter).toLowerCase(), laneIndex, hit: false };
 
     scene.add(group);
     pickups.push(group);
   }
 
   function spawnBatch() {
-    const z = lastSpawnZ - 14 - rng() * 10;
+    // Verder uit elkaar, zodat er tijd is om te reageren
+    const z = lastSpawnZ - 20 - rng() * 12;
     lastSpawnZ = z;
 
-    const laneIndex = Math.floor(rng() * 3);
-    const correctLane = laneIndex;
+    const correctLane = Math.floor(rng() * 3);
+    createPickup(target, correctLane, z);
 
-    const correctLetter = target;
-    createPickup(correctLetter, correctLane, z);
-
-    const otherLetters = activeLetters.filter(l => l !== correctLetter);
+    // Twee foute letters uit de set
+    const otherLetters = activeLetters.filter(l => l !== target);
     for (let i = 0; i < 3; i++) {
       if (i === correctLane) continue;
-      const l = otherLetters.length ? otherLetters[Math.floor(rng() * otherLetters.length)] : correctLetter;
+      const l = otherLetters.length ? otherLetters[Math.floor(rng() * otherLetters.length)] : target;
       createPickup(l, i, z);
     }
   }
 
   function setupThree() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0b0f14, 8, 60);
+    scene.fog = new THREE.Fog(0x0b0f14, 10, 70);
 
-    camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 220);
     camera.position.set(0, 6.2, 9.5);
     camera.lookAt(0, 0.8, 0);
 
@@ -268,26 +273,26 @@
     dir.position.set(6, 10, 6);
     scene.add(dir);
 
-    const roadGeom = new THREE.PlaneGeometry(9, 200);
+    const roadGeom = new THREE.PlaneGeometry(9, 260);
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x111a24, roughness: 0.95, metalness: 0.0 });
     road = new THREE.Mesh(roadGeom, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.position.z = -70;
+    road.position.z = -95;
     scene.add(road);
 
     const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 4);
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 24; i++) {
       const a = new THREE.Mesh(lineGeom, lineMat);
-      a.position.set(-1.1, 0.02, -i * 10);
+      a.position.set(-1.1, 0.02, -i * 12);
       scene.add(a);
-      lights.push(a);
+      laneMarks.push(a);
 
       const b = new THREE.Mesh(lineGeom, lineMat);
-      b.position.set(1.1, 0.02, -i * 10);
+      b.position.set(1.1, 0.02, -i * 12);
       scene.add(b);
-      lights.push(b);
+      laneMarks.push(b);
     }
 
     const carGroup = new THREE.Group();
@@ -324,8 +329,8 @@
     car.position.set(lanes[lane], 0, 2.2);
     scene.add(car);
 
-    pickNewTarget();
-    for (let i = 0; i < 4; i++) spawnBatch();
+    setTarget(activeLetters[0]);
+    for (let i = 0; i < 3; i++) spawnBatch();
 
     window.addEventListener("resize", onResize);
   }
@@ -360,13 +365,13 @@
         const ok = p.userData.letter === target;
         if (ok) {
           score += 1;
-          turboTime = 70;
+          turboTime = 55;
           slowTime = 0;
           setStatus("😄");
           beep(true);
           pickNewTarget();
         } else {
-          slowTime = 60;
+          slowTime = 70;
           turboTime = 0;
           setStatus("😬");
           beep(false);
@@ -382,25 +387,30 @@
   function tick() {
     if (!running) return;
 
+    // Zachte lane wissel
     const laneX = lanes[lane];
-    car.position.x += (laneX - car.position.x) * 0.18;
+    car.position.x += (laneX - car.position.x) * 0.14;
 
+    // Snelheid zacht aanpassen
+    let targetSpeed = baseSpeed;
     if (turboTime > 0) {
       turboTime -= 1;
-      speed = baseSpeed * 1.7;
+      targetSpeed = baseSpeed * 1.25; // subtiel
     } else if (slowTime > 0) {
       slowTime -= 1;
-      speed = baseSpeed * 0.75;
+      targetSpeed = baseSpeed * 0.70; // duidelijk rustiger
     } else {
-      speed = baseSpeed;
       setStatus("🙂");
     }
+    speed += (targetSpeed - speed) * 0.08;
 
-    for (const l of lights) {
+    // Beweging van baanmarkeringen
+    for (const l of laneMarks) {
       l.position.z += speed * 10;
-      if (l.position.z > 8) l.position.z = -200;
+      if (l.position.z > 8) l.position.z = -260;
     }
 
+    // Beweging pickups
     for (const p of pickups) {
       p.position.z += speed * 10;
       if (p.position.z > 8) {
@@ -410,12 +420,13 @@
     }
     pickups = pickups.filter(p => !p.userData.hit);
 
-    while (pickups.length < 10) spawnBatch();
+    // Altijd genoeg keuzes, maar niet te veel tegelijk
+    while (pickups.length < 9) spawnBatch();
 
     checkCollisions();
 
-    camera.position.x += (car.position.x - camera.position.x) * 0.08;
-    camera.lookAt(car.position.x, 0.8, -8);
+    camera.position.x += (car.position.x - camera.position.x) * 0.07;
+    camera.lookAt(car.position.x, 0.8, -10);
 
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
@@ -436,10 +447,11 @@
       if (e.key === "ArrowRight") right();
     });
 
+    // Tikken in het scherm
     window.addEventListener("pointerdown", (e) => {
       const x = e.clientX / window.innerWidth;
-      if (x < 0.33) left();
-      else if (x > 0.66) right();
+      if (x < 0.40) left();
+      else if (x > 0.60) right();
     });
   }
 
@@ -452,19 +464,20 @@
 
   document.getElementById("startBtn").addEventListener("click", startGame);
 
-  document.getElementById("lettersEasyBtn").addEventListener("click", () => {
-    activeLetters = ["M","A","S"];
-    setTarget(activeLetters[0]);
+  document.getElementById("slowBtn").addEventListener("click", () => {
+    baseSpeed = 0.045;   // extra rustig
   });
 
-  document.getElementById("lettersAllBtn").addEventListener("click", () => {
-    activeLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-    setTarget("A");
+  document.getElementById("normalBtn").addEventListener("click", () => {
+    baseSpeed = 0.060;   // rustig
   });
 
   document.getElementById("soundBtn").addEventListener("click", (e) => {
     soundOn = !soundOn;
     e.target.textContent = soundOn ? "Geluid: aan" : "Geluid: uit";
+    if (!soundOn) {
+      try { window.speechSynthesis.cancel(); } catch {}
+    }
   });
 
   bindControls();
