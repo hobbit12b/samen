@@ -88,6 +88,10 @@ CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
   return this;
 };
 
+function mod(n, m){
+  return ((n % m) + m) % m;
+}
+
 function roadWidthAt(y){
   const t = y / canvas.height;
   const minW = canvas.width * 0.28;
@@ -97,8 +101,7 @@ function roadWidthAt(y){
 
 /*
 Rustige bocht, geen golfslag
-We gebruiken een trage sinus met lage amplitude
-Plus een mini second harmonic voor een natuurlijke curve, maar bijna onmerkbaar
+Trage sinus met lage amplitude
 */
 function roadCenterXAt(y){
   const t = y / canvas.height;
@@ -107,9 +110,7 @@ function roadCenterXAt(y){
   const slow = Math.sin(roadScroll / 520) * (canvas.width * 0.045);
   const slow2 = Math.sin(roadScroll / 900 + 1.7) * (canvas.width * 0.018);
 
-  // bovenin iets meer effect dan onderin, zodat het perspectief klopt
   const influence = (1 - t) ** 1.2;
-
   return base + (slow + slow2) * influence;
 }
 
@@ -119,7 +120,6 @@ function roadEdgesAt(y){
   return { left: cx - w/2, right: cx + w/2, cx, w };
 }
 
-// Maak een reeks punten zodat randen en polygon netjes krommen
 function sampleRoadPoints(stepY = 24){
   const pts = [];
   for(let y = 0; y <= canvas.height + stepY; y += stepY){
@@ -137,7 +137,6 @@ function drawBackground(){
   ctx.fillStyle = g;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // gras
   ctx.fillStyle = "#2c8c3a";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
@@ -168,7 +167,7 @@ function strokeEdge(pts, side){
   ctx.stroke();
 }
 
-// Dynamische zijlijnen: dashes die naar beneden bewegen, met perspectief
+// Dashes bewegen nu correct naar beneden door (p.y - scroll)
 function drawEdgeDashes(pts, side){
   const scroll = roadScroll % 140;
 
@@ -176,19 +175,14 @@ function drawEdgeDashes(pts, side){
     const p = pts[i];
     const t = p.y / canvas.height;
 
-    // dash ritme, boven kleiner, onder groter
     const dashEvery = 90 + t * 40;
     const dashLen = 36 + t * 32;
 
-    // bepalen of dit segment “aan” staat
-    const phase = (p.y + scroll) % dashEvery;
+    const phase = mod((p.y - scroll), dashEvery);
     const on = phase < dashLen;
-
     if(!on) continue;
 
     const x = side === "left" ? p.left : p.right;
-
-    // kleine inset zodat dash net op het asfalt ligt
     const inset = side === "left" ? 10 : -10;
 
     ctx.lineWidth = 5 + t * 4;
@@ -200,7 +194,6 @@ function drawEdgeDashes(pts, side){
   }
 }
 
-// Middenstreep dynamisch, volgt de bocht via cx
 function drawCenterDashes(pts){
   const scroll = roadScroll % 170;
 
@@ -211,7 +204,7 @@ function drawCenterDashes(pts){
     const every = 120 + t * 55;
     const len = 52 + t * 40;
 
-    const phase = (p.y + scroll) % every;
+    const phase = mod((p.y - scroll), every);
     if(phase > len) continue;
 
     const w = 10 + t * 10;
@@ -226,7 +219,6 @@ function drawCenterDashes(pts){
   }
 }
 
-// Rumble strips, rood wit segmenten, volgen de curve
 function drawRumble(pts, side){
   const scroll = roadScroll % 160;
 
@@ -237,7 +229,7 @@ function drawRumble(pts, side){
     const every = 80 + t * 35;
     const len = 34 + t * 28;
 
-    const phase = (p.y + scroll) % every;
+    const phase = mod((p.y - scroll), every);
     const on = phase < len;
     if(!on) continue;
 
@@ -265,7 +257,6 @@ function drawRoad(){
 
   fillRoadPolygon(pts);
 
-  // Eerst de vaste rand, maar niet statisch: we leggen er bewegende dashes overheen
   strokeEdge(pts, "left");
   strokeEdge(pts, "right");
 
@@ -277,7 +268,6 @@ function drawRoad(){
 
   drawCenterDashes(pts);
 
-  // vignette voor diepte
   const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.72, canvas.width*0.2, canvas.width/2, canvas.height*0.72, canvas.width*0.95);
   v.addColorStop(0, "rgba(0,0,0,0)");
   v.addColorStop(1, "rgba(0,0,0,0.35)");
@@ -286,7 +276,6 @@ function drawRoad(){
 }
 
 function chooseCarSprite(){
-  // steerDx is verschil target minus current, geeft stuurintentie
   if(car.steerDx < -18) return carLeftImg;
   if(car.steerDx > 18) return carRightImg;
   return carStraightImg;
@@ -294,7 +283,9 @@ function chooseCarSprite(){
 
 function drawCar(){
   const base = Math.min(canvas.width, canvas.height);
-  const carW = Math.max(120, base * 0.19);
+
+  // Auto 20 procent groter
+  const carW = Math.max(144, base * 0.228);
   const carH = carW * 0.62;
 
   car.w = carW;
@@ -305,10 +296,8 @@ function drawCar(){
   ctx.save();
   ctx.translate(car.x, car.y);
 
-  // mini tilt, heel subtiel, zodat het natuurgetrouw blijft
   ctx.rotate(car.tilt * 0.55);
 
-  // schaduw
   ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.beginPath();
   ctx.ellipse(0, carH*0.36, carW*0.34, carH*0.22, 0, 0, Math.PI*2);
@@ -391,10 +380,8 @@ function update(dt){
   const dx = car.targetX - car.x;
   car.steerDx = dx;
 
-  // smoother, minder “schok”
   car.x += dx * (0.075 * dt);
 
-  // minimale tilt, echt subtiel
   const desiredTilt = Math.max(-0.22, Math.min(0.22, dx / (canvas.width * 0.9)));
   car.tilt += (desiredTilt - car.tilt) * (0.08 * dt);
 
@@ -460,4 +447,4 @@ canvas.addEventListener("touchstart", restart, {passive:true});
 canvas.addEventListener("mousedown", restart);
 </script>
 </body>
-</html>
+</html>a
