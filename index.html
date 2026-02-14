@@ -18,13 +18,37 @@
     border-radius: 12px;
     backdrop-filter: blur(4px);
   }
+  #ui .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  #ui .badge {
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.35);
+  }
+  #ui .targetBox{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.18);
+    border: 2px solid rgba(255,255,255,0.35);
+    font-weight: 700;
+  }
   #ui small { display:block; opacity:0.9; margin-top:6px; font-size: 14px; }
 </style>
 </head>
 <body>
 
 <div id="ui">
-  Energie: <span id="energy">100</span>
+  <div class="row">
+    <span class="badge">Energie: <span id="energy">100</span></span>
+    <span class="badge">Opdracht: <span class="targetBox" id="targetLetter">A</span></span>
+    <span class="badge">Goed: <span id="score">0</span></span>
+  </div>
   <small>Stuur met vinger, of muis</small>
 </div>
 
@@ -42,6 +66,8 @@ window.addEventListener("resize", resize);
 resize();
 
 const uiEnergy = document.getElementById("energy");
+const uiTarget = document.getElementById("targetLetter");
+const uiScore = document.getElementById("score");
 
 function loadImg(src){
   const img = new Image();
@@ -53,11 +79,27 @@ const carStraightImg = loadImg("car_straight.png");
 const carLeftImg = loadImg("car_left.png");
 const carRightImg = loadImg("car_right.png");
 
+CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  this.beginPath();
+  this.moveTo(x + rr, y);
+  this.arcTo(x + w, y, x + w, y + h, rr);
+  this.arcTo(x + w, y + h, x, y + h, rr);
+  this.arcTo(x, y + h, x, y, rr);
+  this.arcTo(x, y, x + w, y, rr);
+  this.closePath();
+  return this;
+};
+
+function mod(n, m){
+  return ((n % m) + m) % m;
+}
+
 let energy = 100;
 let roadScroll = 0;
+let score = 0;
 
 const letters = "AEIOUMKSTPRLN".split("");
-const items = [];
 
 const state = {
   pointerX: canvas.width / 2,
@@ -76,42 +118,42 @@ const car = {
   steerDx: 0
 };
 
-CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-  const rr = Math.min(r, w/2, h/2);
-  this.beginPath();
-  this.moveTo(x + rr, y);
-  this.arcTo(x + w, y, x + w, y + h, rr);
-  this.arcTo(x + w, y + h, x, y + h, rr);
-  this.arcTo(x, y + h, x, y, rr);
-  this.arcTo(x, y, x + w, y, rr);
-  this.closePath();
-  return this;
-};
+// Letter items op de weg
+const items = [];
 
-function mod(n, m){
-  return ((n % m) + m) % m;
+// Opdrachtletter
+let targetLetter = letters[Math.floor(Math.random() * letters.length)];
+uiTarget.textContent = targetLetter;
+
+// hoe vaak de opdrachtletter wisselt
+let targetTimer = 0;
+const TARGET_SWITCH_SECONDS = 8;
+
+// zachte feedback zonder flitsen
+let feedback = { text: "", t: 0 };
+
+function setFeedback(text){
+  feedback.text = text;
+  feedback.t = 60; // frames
 }
 
+/* weg logica, rustig, bijna recht */
 function roadWidthAt(y){
   const t = y / canvas.height;
-  const minW = canvas.width * 0.28;
+  const minW = canvas.width * 0.30;
   const maxW = canvas.width * 0.90;
-  return minW + (maxW - minW) * (t ** 1.65);
+  return minW + (maxW - minW) * (t ** 1.6);
 }
 
-/*
-Rustige bocht, geen golfslag
-Trage sinus met lage amplitude
-*/
 function roadCenterXAt(y){
   const t = y / canvas.height;
-
   const base = canvas.width / 2;
-  const slow = Math.sin(roadScroll / 520) * (canvas.width * 0.045);
-  const slow2 = Math.sin(roadScroll / 900 + 1.7) * (canvas.width * 0.018);
 
-  const influence = (1 - t) ** 1.2;
-  return base + (slow + slow2) * influence;
+  // rustiger dan eerder, nauwelijks bocht
+  const slow = Math.sin(roadScroll / 680) * (canvas.width * 0.035);
+  const influence = (1 - t) ** 1.15;
+
+  return base + slow * influence;
 }
 
 function roadEdgesAt(y){
@@ -120,7 +162,7 @@ function roadEdgesAt(y){
   return { left: cx - w/2, right: cx + w/2, cx, w };
 }
 
-function sampleRoadPoints(stepY = 24){
+function sampleRoadPoints(stepY = 26){
   const pts = [];
   for(let y = 0; y <= canvas.height + stepY; y += stepY){
     const e = roadEdgesAt(y);
@@ -131,14 +173,26 @@ function sampleRoadPoints(stepY = 24){
 
 function drawBackground(){
   const g = ctx.createLinearGradient(0,0,0,canvas.height);
-  g.addColorStop(0, "#69b3ff");
-  g.addColorStop(0.45, "#3b76c8");
+  g.addColorStop(0, "#74c0ff");
+  g.addColorStop(0.5, "#3f86d9");
   g.addColorStop(1, "#1a1a1a");
   ctx.fillStyle = g;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  ctx.fillStyle = "#2c8c3a";
+  // rustige berm, cartoon
+  ctx.fillStyle = "#3aa64b";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // zachte “vlekken” in het gras, heel subtiel
+  const blobCount = 10;
+  for(let i=0; i<blobCount; i++){
+    const x = (i * canvas.width / blobCount) + (Math.sin((roadScroll/220) + i) * 18);
+    const y = (i * 130 + (roadScroll*1.2)) % (canvas.height + 160) - 80;
+    ctx.fillStyle = "rgba(0,0,0,0.05)";
+    ctx.beginPath();
+    ctx.ellipse(x, y, 120, 55, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
 }
 
 function fillRoadPolygon(pts){
@@ -148,107 +202,72 @@ function fillRoadPolygon(pts){
   for(let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i].right, pts[i].y);
   ctx.closePath();
 
-  ctx.fillStyle = "#4b4b4b";
+  ctx.fillStyle = "#505050";
   ctx.fill();
 }
 
-function strokeEdge(pts, side){
-  ctx.beginPath();
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+// Cartoon rand, geen drukke strepen
+function drawSoftRoadEdges(pts){
+  // schaduw rand binnenin de weg
+  for(let i = 0; i < pts.length - 1; i++){
+    const p = pts[i];
+    const t = p.y / canvas.height;
 
-  const x0 = side === "left" ? pts[0].left : pts[0].right;
-  ctx.moveTo(x0, pts[0].y);
+    const left = p.left + 8;
+    const right = p.right - 8;
+    const h = 18 + t * 22;
 
-  for(let i = 1; i < pts.length; i++){
-    const x = side === "left" ? pts[i].left : pts[i].right;
-    ctx.lineTo(x, pts[i].y);
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 10 + t * 8;
+
+    // links
+    ctx.beginPath();
+    ctx.moveTo(left, p.y);
+    ctx.lineTo(left, p.y + h);
+    ctx.stroke();
+
+    // rechts
+    ctx.beginPath();
+    ctx.moveTo(right, p.y);
+    ctx.lineTo(right, p.y + h);
+    ctx.stroke();
   }
+
+  // zachte witte rand, heel rustig, niet knipperend
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].left + 4, pts[0].y);
+  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left + 4, pts[i].y);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].right - 4, pts[0].y);
+  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 4, pts[i].y);
   ctx.stroke();
 }
 
-// Dashes bewegen nu correct naar beneden door (p.y - scroll)
-function drawEdgeDashes(pts, side){
-  const scroll = roadScroll % 140;
-
-  for(let i = 0; i < pts.length - 1; i++){
-    const p = pts[i];
-    const t = p.y / canvas.height;
-
-    const dashEvery = 90 + t * 40;
-    const dashLen = 36 + t * 32;
-
-    const phase = mod((p.y - scroll), dashEvery);
-    const on = phase < dashLen;
-    if(!on) continue;
-
-    const x = side === "left" ? p.left : p.right;
-    const inset = side === "left" ? 10 : -10;
-
-    ctx.lineWidth = 5 + t * 4;
-    ctx.strokeStyle = "rgba(255,255,255,0.95)";
-    ctx.beginPath();
-    ctx.moveTo(x + inset, p.y);
-    ctx.lineTo(x + inset, p.y + 18 + t * 20);
-    ctx.stroke();
-  }
-}
-
+// rustige middenlijn, grote dashes, weinig frequent
 function drawCenterDashes(pts){
-  const scroll = roadScroll % 170;
+  const scroll = roadScroll % 240;
 
   for(let i = 0; i < pts.length - 1; i++){
     const p = pts[i];
     const t = p.y / canvas.height;
 
-    const every = 120 + t * 55;
-    const len = 52 + t * 40;
+    const every = 210 + t * 80;
+    const len = 70 + t * 55;
 
     const phase = mod((p.y - scroll), every);
     if(phase > len) continue;
 
-    const w = 10 + t * 10;
-
-    ctx.strokeStyle = "rgba(255,240,160,0.95)";
-    ctx.lineWidth = w;
+    ctx.strokeStyle = "rgba(255,245,190,0.65)";
+    ctx.lineWidth = 10 + t * 8;
 
     ctx.beginPath();
     ctx.moveTo(p.cx, p.y);
-    ctx.lineTo(p.cx, p.y + 28 + t * 34);
+    ctx.lineTo(p.cx, p.y + 26 + t * 44);
     ctx.stroke();
-  }
-}
-
-function drawRumble(pts, side){
-  const scroll = roadScroll % 160;
-
-  for(let i = 0; i < pts.length - 1; i++){
-    const p = pts[i];
-    const t = p.y / canvas.height;
-
-    const every = 80 + t * 35;
-    const len = 34 + t * 28;
-
-    const phase = mod((p.y - scroll), every);
-    const on = phase < len;
-    if(!on) continue;
-
-    const baseX = side === "left" ? p.left : p.right;
-
-    const stripWidth = 14 + t * 10;
-    const stripInset = 18 + t * 10;
-    const dir = side === "left" ? 1 : -1;
-
-    const isRed = ((Math.floor((p.y + roadScroll) / every)) % 2) === 0;
-    ctx.fillStyle = isRed ? "#d63b3b" : "#f2f2f2";
-
-    ctx.beginPath();
-    ctx.moveTo(baseX + dir * stripInset, p.y);
-    ctx.lineTo(baseX + dir * (stripInset + stripWidth), p.y);
-    ctx.lineTo(baseX + dir * (stripInset + stripWidth + 2), p.y + 18 + t * 18);
-    ctx.lineTo(baseX + dir * (stripInset + 2), p.y + 18 + t * 18);
-    ctx.closePath();
-    ctx.fill();
   }
 }
 
@@ -256,21 +275,13 @@ function drawRoad(){
   const pts = sampleRoadPoints(26);
 
   fillRoadPolygon(pts);
-
-  strokeEdge(pts, "left");
-  strokeEdge(pts, "right");
-
-  drawRumble(pts, "left");
-  drawRumble(pts, "right");
-
-  drawEdgeDashes(pts, "left");
-  drawEdgeDashes(pts, "right");
-
+  drawSoftRoadEdges(pts);
   drawCenterDashes(pts);
 
+  // vignette
   const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.72, canvas.width*0.2, canvas.width/2, canvas.height*0.72, canvas.width*0.95);
   v.addColorStop(0, "rgba(0,0,0,0)");
-  v.addColorStop(1, "rgba(0,0,0,0.35)");
+  v.addColorStop(1, "rgba(0,0,0,0.30)");
   ctx.fillStyle = v;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 }
@@ -283,9 +294,7 @@ function chooseCarSprite(){
 
 function drawCar(){
   const base = Math.min(canvas.width, canvas.height);
-
-  // Auto 20 procent groter
-  const carW = Math.max(144, base * 0.228);
+  const carW = Math.max(144, base * 0.228); // 20% groter
   const carH = carW * 0.62;
 
   car.w = carW;
@@ -295,10 +304,10 @@ function drawCar(){
 
   ctx.save();
   ctx.translate(car.x, car.y);
+  ctx.rotate(car.tilt * 0.45);
 
-  ctx.rotate(car.tilt * 0.55);
-
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  // schaduw
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath();
   ctx.ellipse(0, carH*0.36, carW*0.34, carH*0.22, 0, 0, Math.PI*2);
   ctx.fill();
@@ -313,24 +322,32 @@ function drawCar(){
   ctx.restore();
 }
 
+function drawItemTile(x, y, letter, isTarget){
+  const scale = 0.88 + (y / canvas.height) * 0.55;
+  const size = 46 * scale;
+
+  // target tegel net iets anders, maar rustig
+  const fill = isTarget ? "rgba(170,225,255,0.88)" : "rgba(255,220,120,0.90)";
+  const stroke = isTarget ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.18)";
+
+  ctx.fillStyle = fill;
+  ctx.roundRect(x - size/2, y - size/2, size, size, 12);
+  ctx.fill();
+
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(10,10,10,0.9)";
+  ctx.font = `700 ${Math.floor(26*scale)}px Arial`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(letter, x, y + 1);
+}
+
 function drawItems(){
-  items.forEach(item => {
-    const scale = 0.85 + (item.y / canvas.height) * 0.55;
-    const size = item.size * scale;
-
-    ctx.fillStyle = "rgba(255,215,80,0.95)";
-    ctx.roundRect(item.x - size/2, item.y - size/2, size, size, 10);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    ctx.fillStyle = "#111";
-    ctx.font = `bold ${Math.floor(26*scale)}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(item.letter, item.x, item.y + 1);
+  items.forEach(it => {
+    drawItemTile(it.x, it.y, it.letter, it.isTarget);
   });
 }
 
@@ -352,24 +369,57 @@ function clampToRoad(x, y){
   return Math.min(e.right - pad, Math.max(e.left + pad, x));
 }
 
-function spawnItem(){
-  const ySpawn = -40;
-  const e = roadEdgesAt(canvas.height * 0.32);
-  const margin = 90;
+function spawnLetter(isTarget){
+  const ySpawn = -50;
+  const e = roadEdgesAt(canvas.height * 0.34);
+  const margin = 95;
+
   const x = e.left + margin + Math.random() * (e.w - margin * 2);
 
   items.push({
     x,
     y: ySpawn,
-    letter: letters[Math.floor(Math.random() * letters.length)],
-    size: 44,
-    vy: 3.7
+    letter: isTarget ? targetLetter : letters[Math.floor(Math.random() * letters.length)],
+    isTarget,
+    size: 46,
+    vy: 3.5
   });
 }
-setInterval(spawnItem, 1200);
+
+// spawn logica
+let spawnTimer = 0;
+function maybeSpawn(dt){
+  spawnTimer += dt;
+
+  // gemiddeld om de 1.1 sec een letter
+  if(spawnTimer > 66){
+    spawnTimer = 0;
+
+    // af en toe een opdrachtletter, ongeveer 1 op 4
+    const wantTarget = Math.random() < 0.25;
+    spawnLetter(wantTarget);
+  }
+}
+
+function updateTargetLetter(dt){
+  targetTimer += dt / 60;
+
+  if(targetTimer >= TARGET_SWITCH_SECONDS){
+    targetTimer = 0;
+
+    // kies nieuwe letter, liever anders dan vorige
+    let next = targetLetter;
+    while(next === targetLetter){
+      next = letters[Math.floor(Math.random() * letters.length)];
+    }
+    targetLetter = next;
+    uiTarget.textContent = targetLetter;
+    setFeedback("Nieuwe opdracht");
+  }
+}
 
 function update(dt){
-  energy -= 0.025 * dt;
+  energy -= 0.022 * dt;
   energy = Math.max(0, Math.min(140, energy));
   uiEnergy.textContent = Math.floor(energy);
 
@@ -382,27 +432,54 @@ function update(dt){
 
   car.x += dx * (0.075 * dt);
 
-  const desiredTilt = Math.max(-0.22, Math.min(0.22, dx / (canvas.width * 0.9)));
+  const desiredTilt = Math.max(-0.20, Math.min(0.20, dx / (canvas.width * 0.95)));
   car.tilt += (desiredTilt - car.tilt) * (0.08 * dt);
+
+  maybeSpawn(dt);
+  updateTargetLetter(dt);
 
   for(let i = items.length - 1; i >= 0; i--){
     const it = items[i];
+
     it.y += it.vy * dt;
 
     const e = roadEdgesAt(it.y);
-    const margin = 80;
+    const margin = 85;
     it.x = Math.min(e.right - margin, Math.max(e.left + margin, it.x));
 
-    const carW = car.w * 0.75;
-    const carH = car.h * 0.75;
+    const hitW = car.w * 0.72;
+    const hitH = car.h * 0.72;
 
-    if(Math.abs(it.x - car.x) < (carW/2) && Math.abs(it.y - car.y) < (carH/2)){
-      energy = Math.min(140, energy + 12);
+    const hit = Math.abs(it.x - car.x) < (hitW/2) && Math.abs(it.y - car.y) < (hitH/2);
+
+    if(hit){
+      if(it.isTarget){
+        score += 1;
+        uiScore.textContent = score;
+        energy = Math.min(140, energy + 18);
+        setFeedback("Goed");
+      } else {
+        energy = Math.min(140, energy + 8);
+      }
       items.splice(i, 1);
       continue;
     }
-    if(it.y > canvas.height + 140) items.splice(i, 1);
+
+    if(it.y > canvas.height + 160) items.splice(i, 1);
   }
+
+  if(feedback.t > 0) feedback.t -= dt;
+}
+
+function drawFeedback(){
+  if(feedback.t <= 0) return;
+
+  const alpha = Math.min(1, feedback.t / 40);
+  ctx.fillStyle = `rgba(255,255,255,${0.85 * alpha})`;
+  ctx.font = "700 36px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(feedback.text, canvas.width/2, canvas.height*0.18);
 }
 
 function draw(){
@@ -410,12 +487,13 @@ function draw(){
   drawRoad();
   drawItems();
   drawCar();
+  drawFeedback();
 
   if(energy <= 0){
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 44px Arial";
+    ctx.font = "700 44px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("Oeps, leeg", canvas.width/2, canvas.height/2 - 20);
@@ -441,7 +519,10 @@ requestAnimationFrame(loop);
 function restart(){
   if(energy > 0) return;
   energy = 100;
+  score = 0;
+  uiScore.textContent = score;
   items.length = 0;
+  setFeedback("");
 }
 canvas.addEventListener("touchstart", restart, {passive:true});
 canvas.addEventListener("mousedown", restart);
