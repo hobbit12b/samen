@@ -23,15 +23,12 @@
       display:flex; align-items:center; gap:10px;
       user-select: none;
     }
-    #targetLetter {
-      font-size: 18px; font-weight: 800; letter-spacing: 0.2px;
-      display:flex; align-items:center; gap:10px;
-    }
+    #targetLetter { font-size: 18px; font-weight: 800; display:flex; align-items:center; gap:10px; }
     #bigLetter {
-      width: 44px; height: 44px; border-radius: 12px;
+      width: 46px; height: 46px; border-radius: 12px;
       background: rgba(255,255,255,0.16);
       display:flex; align-items:center; justify-content:center;
-      font-size: 22px; font-weight: 900;
+      font-size: 24px; font-weight: 900;
       text-transform: lowercase;
     }
     #status { font-size: 18px; font-weight: 800; }
@@ -89,12 +86,11 @@
 <div id="overlay">
   <div id="card">
     <h1>Letter Race 3D</h1>
-    <p>Pak onderweg de juiste kleine letter om rustig door te rijden.</p>
+    <p>Rustige race: pak de juiste kleine letter. De letters worden fonemisch uitgesproken.</p>
     <p>Bediening: tik links of rechts om van rijstrook te wisselen.</p>
     <div class="row">
       <button id="startBtn">Start</button>
-      <button id="slowBtn">Tempo: extra rustig</button>
-      <button id="normalBtn">Tempo: rustig</button>
+      <button id="tempoBtn">Tempo: extra rustig</button>
       <button id="soundBtn">Geluid: aan</button>
     </div>
   </div>
@@ -124,22 +120,21 @@
   let lane = 1;
   const lanes = [-2.2, 0, 2.2];
 
-  // Kleutertempo
-  let baseSpeed = 0.060;     // rustig
+  // Nog rustiger basis
+  let baseSpeed = 0.035;
   let speed = baseSpeed;
 
-  // Zachte effecten
   let turboTime = 0;
   let slowTime = 0;
 
   let pickups = [];
-  let activeLetters = ["b","g","v","m","z","h","k","l","s","w"];
+  const activeLetters = ["b","g","v","m","z","h","k","l","s","w"];
   let target = "b";
   let score = 0;
 
   let running = false;
   let lastSpawnZ = -10;
-  let rng = () => Math.random();
+  const rng = () => Math.random();
 
   const uiBig = document.getElementById("bigLetter");
   const uiStatus = document.getElementById("status");
@@ -148,14 +143,30 @@
 
   let soundOn = true;
 
-  function speak(text) {
+  // Fonemische klanken, kort en kleutervriendelijk
+  const phoneme = {
+    b: "buh",
+    g: "guh",
+    v: "vuh",
+    m: "mmm",
+    z: "zuh",
+    h: "huh",
+    k: "kuh",
+    l: "lll",
+    s: "sss",
+    w: "wuh"
+  };
+
+  function speakPhoneme(letter) {
     if (!soundOn) return;
     try {
       if (!("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
+      const say = phoneme[letter] || letter;
+
+      const u = new SpeechSynthesisUtterance(say);
       u.lang = "nl-NL";
-      u.rate = 0.85;
+      u.rate = 0.78;
       u.pitch = 1.0;
       window.speechSynthesis.speak(u);
     } catch {}
@@ -168,8 +179,8 @@
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = "sine";
-      o.frequency.value = ok ? 520 : 220;
-      g.gain.value = 0.06;
+      o.frequency.value = ok ? 480 : 210;
+      g.gain.value = 0.055;
       o.connect(g);
       g.connect(ctx.destination);
       o.start();
@@ -180,7 +191,7 @@
   function setTarget(newTarget) {
     target = String(newTarget).toLowerCase();
     uiBig.textContent = target;
-    speak(`Pak de ${target}`);
+    speakPhoneme(target);
   }
 
   function pickNewTarget() {
@@ -188,7 +199,7 @@
     setTarget(next);
   }
 
-  // Kleine letters op de pickups
+  // Duidelijkere letter, groter en rustiger
   function makeTextSprite(letter) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -198,35 +209,34 @@
     ctx.fillStyle = "rgba(255,255,255,0.08)";
     ctx.fillRect(0,0,256,256);
 
-    ctx.fillStyle = "rgba(255,255,255,0.20)";
-    ctx.fillRect(22,22,212,212);
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.fillRect(20,20,216,216);
 
-    // Kleinere letter, duidelijk leesbaar
-    ctx.font = "900 110px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.font = "900 140px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
-    ctx.fillText(String(letter).toLowerCase(), 128, 136);
+    ctx.fillText(String(letter).toLowerCase(), 128, 138);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.anisotropy = 8;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.05, 1.05, 1);
+    sprite.scale.set(1.25, 1.25, 1);
     return sprite;
   }
 
   function createPickup(letter, laneIndex, z) {
     const group = new THREE.Group();
 
-    const baseGeom = new THREE.BoxGeometry(1.0, 0.6, 1.0);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.45, metalness: 0.20 });
+    const baseGeom = new THREE.BoxGeometry(1.05, 0.7, 1.05);
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.45, metalness: 0.18 });
     const base = new THREE.Mesh(baseGeom, baseMat);
-    base.position.y = 0.35;
+    base.position.y = 0.38;
     group.add(base);
 
     const sprite = makeTextSprite(letter);
-    sprite.position.set(0, 0.85, 0.52);
+    sprite.position.set(0, 1.05, 0.55);
     group.add(sprite);
 
     group.position.set(lanes[laneIndex], 0, z);
@@ -237,86 +247,94 @@
   }
 
   function spawnBatch() {
-    // Verder uit elkaar, zodat er tijd is om te reageren
-    const z = lastSpawnZ - 20 - rng() * 12;
+    // Veel verder uit elkaar, zodat lezen echt kan
+    const z = lastSpawnZ - 32 - rng() * 16;
     lastSpawnZ = z;
 
     const correctLane = Math.floor(rng() * 3);
     createPickup(target, correctLane, z);
 
-    // Twee foute letters uit de set
     const otherLetters = activeLetters.filter(l => l !== target);
     for (let i = 0; i < 3; i++) {
       if (i === correctLane) continue;
-      const l = otherLetters.length ? otherLetters[Math.floor(rng() * otherLetters.length)] : target;
+      const l = otherLetters[Math.floor(rng() * otherLetters.length)];
       createPickup(l, i, z);
     }
   }
 
   function setupThree() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0b0f14, 10, 70);
-
-    camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 220);
-    camera.position.set(0, 6.2, 9.5);
-    camera.lookAt(0, 0.8, 0);
+    scene.fog = new THREE.Fog(0x0b0f14, 12, 120);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     document.body.appendChild(renderer.domElement);
 
+    // Minder perspectief: Orthographic camera
+    const aspect = window.innerWidth / window.innerHeight;
+    const viewSize = 10.5;
+    camera = new THREE.OrthographicCamera(
+      -viewSize * aspect, viewSize * aspect,
+      viewSize, -viewSize,
+      0.1, 300
+    );
+
+    // Bijna top down, maar net genoeg diepte om 3D te voelen
+    camera.position.set(0, 16, 12);
+    camera.lookAt(0, 0.8, -18);
+
     const hemi = new THREE.HemisphereLight(0xffffff, 0x1b2430, 1.0);
     scene.add(hemi);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-    dir.position.set(6, 10, 6);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.05);
+    dir.position.set(6, 12, 6);
     scene.add(dir);
 
-    const roadGeom = new THREE.PlaneGeometry(9, 260);
+    const roadGeom = new THREE.PlaneGeometry(9, 520);
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x111a24, roughness: 0.95, metalness: 0.0 });
     road = new THREE.Mesh(roadGeom, roadMat);
     road.rotation.x = -Math.PI / 2;
-    road.position.z = -95;
+    road.position.z = -190;
     scene.add(road);
 
-    const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 4);
-    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
+    const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 4.8);
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0 });
 
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < 34; i++) {
       const a = new THREE.Mesh(lineGeom, lineMat);
-      a.position.set(-1.1, 0.02, -i * 12);
+      a.position.set(-1.1, 0.02, -i * 16);
       scene.add(a);
       laneMarks.push(a);
 
       const b = new THREE.Mesh(lineGeom, lineMat);
-      b.position.set(1.1, 0.02, -i * 12);
+      b.position.set(1.1, 0.02, -i * 16);
       scene.add(b);
       laneMarks.push(b);
     }
 
     const carGroup = new THREE.Group();
     const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 0.5, 2.0),
+      new THREE.BoxGeometry(1.2, 0.55, 2.2),
       new THREE.MeshStandardMaterial({ color: 0x2fd0ff, roughness: 0.35, metalness: 0.2 })
     );
-    body.position.y = 0.45;
+    body.position.y = 0.5;
     carGroup.add(body);
 
     const top = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.35, 0.9),
+      new THREE.BoxGeometry(0.85, 0.38, 1.0),
       new THREE.MeshStandardMaterial({ color: 0x1e2a36, roughness: 0.6, metalness: 0.1 })
     );
-    top.position.set(0, 0.75, -0.1);
+    top.position.set(0, 0.82, -0.1);
     carGroup.add(top);
 
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.95, metalness: 0.0 });
-    const wheelGeom = new THREE.CylinderGeometry(0.18, 0.18, 0.18, 18);
+    const wheelGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 18);
     const offsets = [
-      [-0.55, 0.22, 0.65],
-      [ 0.55, 0.22, 0.65],
-      [-0.55, 0.22,-0.65],
-      [ 0.55, 0.22,-0.65]
+      [-0.6, 0.25, 0.75],
+      [ 0.6, 0.25, 0.75],
+      [-0.6, 0.25,-0.75],
+      [ 0.6, 0.25,-0.75]
     ];
     for (const [x,y,z] of offsets) {
       const w = new THREE.Mesh(wheelGeom, wheelMat);
@@ -337,18 +355,19 @@
 
   function onResize() {
     if (!renderer || !camera) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const aspect = window.innerWidth / window.innerHeight;
+    const viewSize = 10.5;
+    camera.left = -viewSize * aspect;
+    camera.right = viewSize * aspect;
+    camera.top = viewSize;
+    camera.bottom = -viewSize;
+    camera.updateProjectionMatrix();
   }
 
-  function setStatus(emoji) {
-    uiStatus.textContent = emoji;
-  }
-
-  function updateScore() {
-    uiScore.textContent = `Score: ${score}`;
-  }
+  function setStatus(emoji) { uiStatus.textContent = emoji; }
+  function updateScore() { uiScore.textContent = `Score: ${score}`; }
 
   function moveLane(dir) {
     lane = Math.max(0, Math.min(2, lane + dir));
@@ -359,25 +378,25 @@
       if (p.userData.hit) continue;
       const dz = Math.abs(p.position.z - car.position.z);
       const dx = Math.abs(p.position.x - car.position.x);
-      if (dz < 1.0 && dx < 0.9) {
+      if (dz < 1.1 && dx < 1.0) {
         p.userData.hit = true;
 
         const ok = p.userData.letter === target;
         if (ok) {
           score += 1;
-          turboTime = 55;
+          turboTime = 70;
           slowTime = 0;
           setStatus("😄");
           beep(true);
           pickNewTarget();
         } else {
-          slowTime = 70;
+          slowTime = 90;
           turboTime = 0;
           setStatus("😬");
           beep(false);
+          speakPhoneme(target);
         }
         updateScore();
-
         scene.remove(p);
       }
     }
@@ -387,46 +406,42 @@
   function tick() {
     if (!running) return;
 
-    // Zachte lane wissel
     const laneX = lanes[lane];
-    car.position.x += (laneX - car.position.x) * 0.14;
+    car.position.x += (laneX - car.position.x) * 0.12;
 
-    // Snelheid zacht aanpassen
     let targetSpeed = baseSpeed;
     if (turboTime > 0) {
       turboTime -= 1;
-      targetSpeed = baseSpeed * 1.25; // subtiel
+      targetSpeed = baseSpeed * 1.15;
     } else if (slowTime > 0) {
       slowTime -= 1;
-      targetSpeed = baseSpeed * 0.70; // duidelijk rustiger
+      targetSpeed = baseSpeed * 0.60;
     } else {
       setStatus("🙂");
     }
-    speed += (targetSpeed - speed) * 0.08;
+    speed += (targetSpeed - speed) * 0.06;
 
-    // Beweging van baanmarkeringen
     for (const l of laneMarks) {
       l.position.z += speed * 10;
-      if (l.position.z > 8) l.position.z = -260;
+      if (l.position.z > 10) l.position.z = -560;
     }
 
-    // Beweging pickups
     for (const p of pickups) {
       p.position.z += speed * 10;
-      if (p.position.z > 8) {
+      if (p.position.z > 10) {
         scene.remove(p);
         p.userData.hit = true;
       }
     }
     pickups = pickups.filter(p => !p.userData.hit);
 
-    // Altijd genoeg keuzes, maar niet te veel tegelijk
     while (pickups.length < 9) spawnBatch();
 
     checkCollisions();
 
-    camera.position.x += (car.position.x - camera.position.x) * 0.07;
-    camera.lookAt(car.position.x, 0.8, -10);
+    // Camera volgt subtiel, zonder perspectief verandering
+    camera.position.x += (car.position.x - camera.position.x) * 0.06;
+    camera.lookAt(camera.position.x, 0.8, -18);
 
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
@@ -447,7 +462,6 @@
       if (e.key === "ArrowRight") right();
     });
 
-    // Tikken in het scherm
     window.addEventListener("pointerdown", (e) => {
       const x = e.clientX / window.innerWidth;
       if (x < 0.40) left();
@@ -464,12 +478,15 @@
 
   document.getElementById("startBtn").addEventListener("click", startGame);
 
-  document.getElementById("slowBtn").addEventListener("click", () => {
-    baseSpeed = 0.045;   // extra rustig
-  });
-
-  document.getElementById("normalBtn").addEventListener("click", () => {
-    baseSpeed = 0.060;   // rustig
+  document.getElementById("tempoBtn").addEventListener("click", (e) => {
+    // Toggle tussen extra rustig en superslow
+    if (baseSpeed > 0.028) {
+      baseSpeed = 0.024;
+      e.target.textContent = "Tempo: super rustig";
+    } else {
+      baseSpeed = 0.035;
+      e.target.textContent = "Tempo: extra rustig";
+    }
   });
 
   document.getElementById("soundBtn").addEventListener("click", (e) => {
@@ -477,6 +494,8 @@
     e.target.textContent = soundOn ? "Geluid: aan" : "Geluid: uit";
     if (!soundOn) {
       try { window.speechSynthesis.cancel(); } catch {}
+    } else {
+      speakPhoneme(target);
     }
   });
 
