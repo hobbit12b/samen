@@ -1,500 +1,200 @@
 <!doctype html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Letter Race Fake Racer</title>
-  <style>
-    html, body { margin:0; height:100%; overflow:hidden; background:#0b0f14; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    canvas { display:block; width:100vw; height:100vh; }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Letter Race</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0f14;font-family:system-ui}
+canvas{display:block}
 
-    #ui {
-      position: fixed; left: 12px; right: 12px; top: 10px;
-      display:flex; justify-content: space-between; gap: 10px;
-      pointer-events:none;
-    }
-    .pill{
-      pointer-events:auto;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.14);
-      color:#fff;
-      padding: 10px 12px;
-      border-radius: 14px;
-      display:flex; align-items:center; gap: 10px;
-      user-select:none;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-    }
-    #bigLetter{
-      width:46px; height:46px; border-radius: 12px;
-      background: rgba(255,255,255,0.16);
-      display:flex; align-items:center; justify-content:center;
-      font-size:24px; font-weight:900; text-transform: lowercase;
-    }
+#ui{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;color:#fff;font-weight:700}
+.pill{background:rgba(255,255,255,.12);padding:8px 12px;border-radius:12px}
 
-    #help{
-      position: fixed; left: 12px; right: 12px; bottom: 12px;
-      display:flex; justify-content: space-between; gap: 10px;
-      pointer-events:none;
-    }
-    .btn{
-      pointer-events:auto;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.14);
-      color:#fff;
-      padding: 14px 16px;
-      border-radius: 16px;
-      font-weight:800;
-      min-width: 120px;
-      text-align:center;
-      user-select:none;
-      touch-action: manipulation;
-    }
-
-    #overlay{
-      position: fixed; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      background: radial-gradient(ellipse at center, rgba(20,30,45,0.92), rgba(5,7,10,0.96));
-      color:#fff; z-index: 10;
-    }
-    #card{
-      width: min(760px, calc(100% - 24px));
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 18px;
-      padding: 18px;
-    }
-    #card h1{ margin:0 0 8px 0; font-size: 22px; }
-    #card p{ margin:6px 0; opacity:0.92; line-height:1.35; }
-    #card .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
-    #card .row button{
-      background: rgba(255,255,255,0.16);
-      border: 1px solid rgba(255,255,255,0.16);
-      color:#fff;
-      padding: 12px 14px;
-      border-radius: 14px;
-      font-weight: 900;
-      cursor:pointer;
-    }
-    #err{
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(255,80,80,0.12);
-      border: 1px solid rgba(255,80,80,0.18);
-      display:none;
-      white-space: pre-wrap;
-      font-size: 13px;
-      line-height: 1.25;
-    }
-  </style>
+#help{position:fixed;bottom:12px;left:12px;right:12px;display:flex;justify-content:space-between}
+.btn{background:rgba(255,255,255,.12);color:#fff;padding:12px 16px;border-radius:14px;font-weight:800}
+</style>
 </head>
 <body>
 
 <canvas id="c"></canvas>
 
-<div id="overlay">
-  <div id="card">
-    <h1>Letter Race</h1>
-    <p>Weg zoals Fake Racer, rustig tempo, pak de juiste kleine letter.</p>
-    <p>Tik links of rechts om van rijstrook te wisselen.</p>
-    <div class="row">
-      <button id="startBtn">Start</button>
-      <button id="tempoBtn">Tempo: extra rustig</button>
-    </div>
-    <div id="err"></div>
-  </div>
-</div>
-
 <div id="ui">
-  <div class="pill">
-    <div id="bigLetter">b</div>
-    <div>Doelletter</div>
-  </div>
-  <div class="pill">
-    <div id="score">Score: 0</div>
-  </div>
+<div class="pill">Doelletter: <span id="letter">b</span></div>
+<div class="pill" id="score">Score: 0</div>
 </div>
 
 <div id="help">
-  <div class="btn" id="leftBtn">Links</div>
-  <div class="btn" id="rightBtn">Rechts</div>
+<div class="btn" id="leftBtn">Links</div>
+<div class="btn" id="rightBtn">Rechts</div>
 </div>
 
 <script>
-(() => {
-  const canvas = document.getElementById("c");
-  const ctx = canvas.getContext("2d");
-
-  const overlay = document.getElementById("overlay");
-  const errBox = document.getElementById("err");
-  const uiBig = document.getElementById("bigLetter");
-  const uiScore = document.getElementById("score");
-
-  function showErr(msg){
-    errBox.style.display = "block";
-    errBox.textContent = msg;
-  }
-
-  window.addEventListener("error", (e) => {
-    showErr("Er ging iets mis:\n" + (e?.message || e));
-  });
-
-  function resize(){
-    // bewust geen dpr scaling, dit is stabiel op mobiel
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
-
-  // assets
-  const carStraight = new Image();
-  const carLeft = new Image();
-  const carRight = new Image();
-
-  const setFail = (name) => showErr("Kan " + name + " niet laden. Staat het bestand naast index.html, exact zo gespeld?");
-  carStraight.onerror = () => setFail("car_straight.png");
-  carLeft.onerror = () => setFail("car_left.png");
-  carRight.onerror = () => setFail("car_right.png");
-
-  carStraight.src = "./car_straight.png";
-  carLeft.src = "./car_left.png";
-  carRight.src = "./car_right.png";
-
-  // letters
-  const lettersAll = ["b","g","v","m","z","h","k","l","s","w"];
-  let target = "b";
-  let score = 0;
-
-  function pickNewTarget(){
-    target = lettersAll[Math.floor(Math.random() * lettersAll.length)];
-    uiBig.textContent = target;
-  }
-  function updateScore(){
-    uiScore.textContent = "Score: " + score;
-  }
-
-  // pseudo 3D road model
-  const road = {
-    segments: [],
-    segmentLength: 32,
-    drawDistance: 180,
-
-    roadWidth: 2200,
-    laneCount: 3,
-
-    cameraHeight: 950,
-    fov: 90,
-    cameraDepth: 1, // computed
-
-    rumble: 240,
-    laneMarker: 14
-  };
-
-  function computeCameraDepth(){
-    // classic: 1 / tan(fov/2)
-    road.cameraDepth = 1 / Math.tan((road.fov * Math.PI / 180) / 2);
-  }
-  computeCameraDepth();
-
-  // track, meestal recht, af en toe bocht
-  function addStraight(n){
-    for(let i=0;i<n;i++) road.segments.push({ curve: 0, pickups: null });
-  }
-  function addCurve(n, c){
-    for(let i=0;i<n;i++) road.segments.push({ curve: c, pickups: null });
-  }
-  function buildTrack(){
-    road.segments = [];
-    addStraight(80);
-
-    for(let k=0;k<20;k++){
-      addStraight(70 + Math.floor(Math.random()*70));
-      const dir = Math.random()<0.5 ? -1 : 1;
-      addCurve(26 + Math.floor(Math.random()*22), dir * (0.35 + Math.random()*0.55));
-      addStraight(60 + Math.floor(Math.random()*80));
-    }
-
-    addStraight(120);
-  }
-
-  function segIndexAt(z){
-    return Math.floor(z / road.segmentLength) % road.segments.length;
-  }
-
-  function ensurePickupsAhead(position){
-    const base = Math.floor(position / road.segmentLength);
-    for(let d=40; d<240; d+=40){
-      const si = (base + d) % road.segments.length;
-      if(!road.segments[si].pickups) spawnPickupsAt(si);
-    }
-  }
-
-  function spawnPickupsAt(si){
-    const correctLane = Math.floor(Math.random() * 3);
-
-    const used = new Set([target]);
-    const others = [];
-    while(others.length < 2){
-      const l = lettersAll[Math.floor(Math.random()*lettersAll.length)];
-      if(!used.has(l)){
-        used.add(l);
-        others.push(l);
-      }
-    }
-
-    const letters = [null, null, null];
-    letters[correctLane] = target;
-    let oi = 0;
-    for(let i=0;i<3;i++){
-      if(i === correctLane) continue;
-      letters[i] = others[oi++];
-    }
-
-    road.segments[si].pickups = { letters, taken: [false,false,false] };
-  }
-
-  // player
-  let running = false;
-  let lane = 1;
-  let steerSprite = "straight";
-  let steerHold = 0;
-
-  let baseSpeed = 155; // units per second
-  let speed = baseSpeed;
-
-  let position = 0;
-
-  function quad(x1,y1,w1, x2,y2,w2, color){
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(x1 - w1, y1);
-    ctx.lineTo(x2 - w2, y2);
-    ctx.lineTo(x2 + w2, y2);
-    ctx.lineTo(x1 + w1, y1);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function drawTextBox(letter, x, y, size){
-    const s = size;
-    ctx.fillStyle = "rgba(255,255,255,0.12)";
-    ctx.fillRect(x - s*0.55, y - s*0.60, s*1.1, s*1.1);
-    ctx.fillStyle = "rgba(255,255,255,0.22)";
-    ctx.fillRect(x - s*0.45, y - s*0.50, s*0.9, s*0.9);
-
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.font = "900 " + Math.floor(s*0.70) + "px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(letter, x, y + s*0.02);
-  }
-
-  function render(){
-    const w = canvas.width;
-    const h = canvas.height;
-
-    // sky gradient
-    const g = ctx.createLinearGradient(0,0,0,h);
-    g.addColorStop(0, "#0b1622");
-    g.addColorStop(0.55, "#0b0f14");
-    g.addColorStop(1, "#070a0e");
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,w,h);
-
-    const baseIdx = segIndexAt(position);
-
-    let x = 0;   // accumulated curve offset
-    let dx = 0;  // curve velocity
-
-    let maxY = h;
-
-    // van ver naar dichtbij tekenen
-    for(let n = road.drawDistance; n > 0; n--){
-      const idx = (baseIdx + n) % road.segments.length;
-      const seg = road.segments[idx];
-
-      dx += seg.curve;
-      x += dx;
-
-      const z1 = (n) * road.segmentLength;
-      const z2 = (n + 1) * road.segmentLength;
-
-      // camera
-      const camX = x * 0.33;
-      const camY = road.cameraHeight;
-
-      const worldX1 = x;
-      const worldX2 = x + dx;
-
-      const dz1 = z1;
-      const dz2 = z2;
-
-      const scale1 = road.cameraDepth / dz1;
-      const scale2 = road.cameraDepth / dz2;
-
-      const y1 = (h * 0.60) + (scale1 * camY);
-      const y2 = (h * 0.60) + (scale2 * camY);
-
-      if(y2 >= maxY) continue;
-      maxY = y2;
-
-      const x1 = (w / 2) + (scale1 * (worldX1 - camX)) * (w / 2) / 1.2;
-      const x2 = (w / 2) + (scale2 * (worldX2 - camX)) * (w / 2) / 1.2;
-
-      const roadW1 = scale1 * road.roadWidth;
-      const roadW2 = scale2 * road.roadWidth;
-
-      const stripe = (idx % 2 === 0);
-      const roadCol = stripe ? "rgba(18,28,40,0.96)" : "rgba(16,24,35,0.96)";
-      const rumbleCol = stripe ? "rgba(110,122,134,0.22)" : "rgba(110,122,134,0.16)";
-      const laneCol = "rgba(255,255,255,0.40)";
-
-      quad(x1,y1, roadW1 + road.rumble*scale1, x2,y2, roadW2 + road.rumble*scale2, rumbleCol);
-      quad(x1,y1, roadW1, x2,y2, roadW2, roadCol);
-
-      // lane markers
-      const laneW1 = (roadW1 * 2) / road.laneCount;
-      const laneW2 = (roadW2 * 2) / road.laneCount;
-
-      for(let l=1; l<road.laneCount; l++){
-        if(((idx + l) % 3) !== 0) continue;
-        const lx1 = x1 - roadW1 + laneW1 * l;
-        const lx2 = x2 - roadW2 + laneW2 * l;
-        quad(lx1,y1, road.laneMarker*scale1, lx2,y2, road.laneMarker*scale2, laneCol);
-      }
-
-      // pickups tekenen
-      if(seg.pickups && n < 70){
-        const letters = seg.pickups.letters;
-        for(let li=0; li<3; li++){
-          if(seg.pickups.taken[li]) continue;
-
-          const laneCenter = (x2 - roadW2) + laneW2 * (li + 0.5);
-          const size = clamp(48 + scale2 * 820, 22, 62);
-          drawTextBox(letters[li], laneCenter, y2 - 22, size);
-        }
-      }
-    }
-
-    // auto, vast onderin, beweegt niet mee met bocht
-    const carImg = (steerSprite === "left") ? carLeft : (steerSprite === "right") ? carRight : carStraight;
-
-    const carW = Math.min(170, w * 0.24);
-    const carH = carW;
-
-    const laneX = (w / 2) + (lane - 1) * (w * 0.18);
-    const carY = h - carH * 0.85;
-
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.beginPath();
-    ctx.ellipse(laneX, carY + carH*0.72, carW*0.28, carH*0.12, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    if(carImg && carImg.complete){
-      ctx.drawImage(carImg, laneX - carW/2, carY - carH/2, carW, carH);
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,0.18)";
-      ctx.fillRect(laneX - carW/2, carY - carH/2, carW, carH);
-    }
-  }
-
-  function checkPickup(){
-    // check segment iets voor de auto
-    const ahead = position + 6 * road.segmentLength;
-    const si = segIndexAt(ahead);
-    const seg = road.segments[si];
-    if(!seg.pickups) return;
-
-    // trigger maar 1x per pass
-    if(seg.pickups.taken[lane]) return;
-
-    const picked = seg.pickups.letters[lane];
-    seg.pickups.taken[lane] = true;
-
-    if(picked === target){
-      score += 1;
-      pickNewTarget();
-    }
-    updateScore();
-  }
-
-  let lastT = 0;
-  function tick(t){
-    if(!running) return;
-
-    const dt = Math.min(0.033, ((t - lastT) / 1000) || 0);
-    lastT = t;
-
-    speed += (baseSpeed - speed) * 0.12;
-    position += speed * dt;
-
-    const trackLen = road.segments.length * road.segmentLength;
-    if(position >= trackLen) position -= trackLen;
-
-    ensurePickupsAhead(position);
-    checkPickup();
-
-    if(steerHold > 0){
-      steerHold -= 1;
-      if(steerHold === 0) steerSprite = "straight";
-    }
-
-    render();
-    requestAnimationFrame(tick);
-  }
-
-  function setSteer(dir){
-    steerSprite = dir;
-    steerHold = 14; // kort moment andere auto zichtbaar
-  }
-
-  function moveLane(dir){
-    if(!running) return;
-    const prev = lane;
-    lane = clamp(lane + dir, 0, 2);
-    if(lane === prev) return;
-    setSteer(dir < 0 ? "left" : "right");
-  }
-
-  document.getElementById("leftBtn").addEventListener("pointerdown", () => moveLane(-1));
-  document.getElementById("rightBtn").addEventListener("pointerdown", () => moveLane(1));
-
-  window.addEventListener("pointerdown", (e) => {
-    if(!running) return;
-    const x = e.clientX / window.innerWidth;
-    if(x < 0.40) moveLane(-1);
-    else if(x > 0.60) moveLane(1);
-  }, { passive: true });
-
-  document.getElementById("tempoBtn").addEventListener("click", (e) => {
-    if(baseSpeed > 130){
-      baseSpeed = 100;
-      e.target.textContent = "Tempo: super rustig";
-    } else {
-      baseSpeed = 155;
-      e.target.textContent = "Tempo: extra rustig";
-    }
-  });
-
-  document.getElementById("startBtn").addEventListener("click", () => {
-    errBox.style.display = "none";
-
-    buildTrack();
-    pickNewTarget();
-    score = 0;
-    updateScore();
-
-    running = true;
-    overlay.style.display = "none";
-    lastT = 0;
-
-    requestAnimationFrame(tick);
-  });
-})();
+const canvas=document.getElementById("c")
+const ctx=canvas.getContext("2d")
+
+function resize(){
+ canvas.width=window.innerWidth
+ canvas.height=window.innerHeight
+}
+window.addEventListener("resize",resize)
+resize()
+
+// ===== ASSETS =====
+const carStraight=new Image()
+const carLeft=new Image()
+const carRight=new Image()
+
+carStraight.src="./car_straight.png"
+carLeft.src="./car_left.png"
+carRight.src="./car_right.png"
+
+// ===== GAME STATE =====
+let running=true
+let lane=1
+let steer="straight"
+let steerTimer=0
+
+const letters=["b","g","v","m","z","h","k","l","s","w"]
+let target="b"
+let score=0
+
+const uiLetter=document.getElementById("letter")
+const uiScore=document.getElementById("score")
+
+function newTarget(){
+ target=letters[Math.floor(Math.random()*letters.length)]
+ uiLetter.textContent=target
+}
+newTarget()
+
+// ===== ROAD MODEL =====
+const segmentLength=40
+const drawDistance=200
+let position=0
+let speed=140
+
+// track met vooral rechte stukken
+let segments=[]
+function addStraight(n){for(let i=0;i<n;i++)segments.push({curve:0})}
+function addCurve(n,c){for(let i=0;i<n;i++)segments.push({curve:c})}
+
+function buildTrack(){
+ segments=[]
+ addStraight(80)
+ for(let i=0;i<12;i++){
+  addStraight(80+Math.random()*40)
+  addCurve(30,(Math.random()<0.5?-1:1)*(0.2+Math.random()*0.4))
+ }
+ addStraight(200)
+}
+buildTrack()
+
+// ===== DRAW =====
+function draw(){
+ const w=canvas.width
+ const h=canvas.height
+
+ ctx.fillStyle="#0b0f14"
+ ctx.fillRect(0,0,w,h)
+
+ let baseIndex=Math.floor(position/segmentLength)
+ let x=0
+ let dx=0
+ let maxY=h
+
+ for(let n=drawDistance;n>0;n--){
+  const seg=segments[(baseIndex+n)%segments.length]
+  dx+=seg.curve
+  x+=dx
+
+  const z1=n*segmentLength
+  const z2=(n+1)*segmentLength
+
+  const scale1=300/z1
+  const scale2=300/z2
+
+  const y1=h*0.6-scale1*80
+  const y2=h*0.6-scale2*80
+
+  if(y2>=maxY)continue
+  maxY=y2
+
+  const roadW1=scale1*900
+  const roadW2=scale2*900
+
+  const x1=w/2 + x*scale1*40
+  const x2=w/2 + (x+dx)*scale2*40
+
+  ctx.fillStyle=n%2?"#141f2c":"#101923"
+  ctx.beginPath()
+  ctx.moveTo(x1-roadW1,y1)
+  ctx.lineTo(x2-roadW2,y2)
+  ctx.lineTo(x2+roadW2,y2)
+  ctx.lineTo(x1+roadW1,y1)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.strokeStyle="rgba(255,255,255,.4)"
+  ctx.lineWidth=2
+  ctx.beginPath()
+  ctx.moveTo(x1,y1)
+  ctx.lineTo(x2,y2)
+  ctx.stroke()
+ }
+
+ // ===== CAR =====
+ const carImg=steer==="left"?carLeft:steer==="right"?carRight:carStraight
+ const carW=Math.min(160,w*0.25)
+ const carX=w/2+(lane-1)*w*0.2
+ const carY=h-carW*0.8
+
+ if(carImg.complete){
+  ctx.drawImage(carImg,carX-carW/2,carY-carW/2,carW,carW)
+ }else{
+  ctx.fillStyle="white"
+  ctx.fillRect(carX-20,carY-20,40,40)
+ }
+}
+
+// ===== UPDATE =====
+function update(dt){
+ position+=speed*dt
+ if(position>segments.length*segmentLength)position=0
+
+ if(steerTimer>0){
+  steerTimer--
+  if(steerTimer===0)steer="straight"
+ }
+}
+
+// ===== LOOP =====
+let last=0
+function loop(t){
+ const dt=(t-last)/1000
+ last=t
+ update(dt)
+ draw()
+ requestAnimationFrame(loop)
+}
+requestAnimationFrame(loop)
+
+// ===== INPUT =====
+function move(dir){
+ const prev=lane
+ lane=Math.max(0,Math.min(2,lane+dir))
+ if(lane!==prev){
+  steer=dir<0?"left":"right"
+  steerTimer=10
+ }
+}
+document.getElementById("leftBtn").onclick=()=>move(-1)
+document.getElementById("rightBtn").onclick=()=>move(1)
+window.addEventListener("pointerdown",e=>{
+ const x=e.clientX/window.innerWidth
+ if(x<0.4)move(-1)
+ else if(x>0.6)move(1)
+})
 </script>
 </body>
 </html>
