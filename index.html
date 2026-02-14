@@ -86,12 +86,11 @@
 <div id="overlay">
   <div id="card">
     <h1>Letter Race 3D</h1>
-    <p>Rustige race, pak de juiste kleine letter, de klank wordt fonemisch uitgesproken.</p>
+    <p>Rustige race, pak de juiste kleine letter, de klank is fonemisch via geluid, dus geen letternamen.</p>
     <p>Bediening, tik links of rechts om van baan te wisselen.</p>
     <div class="row">
       <button id="startBtn">Start</button>
       <button id="tempoBtn">Tempo: extra rustig</button>
-      <button id="curveBtn">Bochten: aan</button>
       <button id="soundBtn">Geluid: aan</button>
     </div>
   </div>
@@ -117,90 +116,204 @@
   import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
   let scene, camera, renderer;
-  let car, road, laneMarks = [];
+
+  // Auto
+  let car;
   let lane = 1;
 
-  // Rijstroken zonder bocht, bocht komt als offset erbij
+  // Rijstroken
   const laneOffsets = [-2.2, 0, 2.2];
   const carZ = 2.2;
 
   // Tempo
-  let baseSpeed = 0.030;
+  let baseSpeed = 0.028;
   let speed = baseSpeed;
   let turboTime = 0;
   let slowTime = 0;
 
   // Letters
-  let pickups = [];
   const activeLetters = ["b","g","v","m","z","h","k","l","s","w"];
   let target = "b";
   let score = 0;
+  let pickups = [];
+  let lastSpawnZ = -18;
 
-  // Spel
-  let running = false;
-  let lastSpawnZ = -12;
-  const rng = () => Math.random();
+  // Weg segmenten, echte bochten
+  const road = {
+    segments: [],
+    laneMarks: [],
+    segLen: 7.5,
+    segCount: 44,
+    halfWidth: 4.8
+  };
 
-  // Bochten
-  let curvesOn = true;
+  // Bochten profiel
   let curvePhase = 0;
-  const curvePeriod = 120;     // groter is rustiger slingeren
-  const curveAmp = 1.15;       // hoe ver de baan uitschuift
+  const curvePeriod = 140;
+  const curveAmp = 2.1;
 
   // UI
   const uiBig = document.getElementById("bigLetter");
   const uiStatus = document.getElementById("status");
   const uiScore = document.getElementById("score");
   const overlay = document.getElementById("overlay");
-  let soundOn = true;
+  let running = false;
 
-  // Fonemische klanken
-  // Geen losse letters, geen letternamen
-  const phoneme = {
-    b: "buh",
-    g: "guh",
-    v: "vuh",
-    m: "mmm",
-    z: "zzzz",
-    h: "hhh",
-    k: "kuh",
-    l: "luh",
-    s: "sss",
-    w: "wuh"
-  };
+  // Geluid, fonemisch via Web Audio
+  let soundOn = true;
+  let audioCtx = null;
+
+  const rng = () => Math.random();
+
+  function ensureAudio() {
+    if (!soundOn) return null;
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  function makeNoiseBuffer(ctx, seconds = 0.25) {
+    const sr = ctx.sampleRate;
+    const len = Math.floor(sr * seconds);
+    const buffer = ctx.createBuffer(1, len, sr);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1);
+    return buffer;
+  }
+
+  function playFricative(ctx, { voiced = false, duration = 0.26, cutoff = 2200, gain = 0.14, voiceHz = 170 } = {}) {
+    const now = ctx.currentTime;
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = makeNoiseBuffer(ctx, duration);
+    const filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.frequency.value = cutoff;
+
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(gain, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    noise.connect(filt);
+    filt.connect(g);
+    g.connect(ctx.destination);
+
+    noise.start(now);
+    noise.stop(now + duration);
+
+    if (voiced) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = voiceHz;
+
+      const vg = ctx.createGain();
+      vg.gain.setValueAtTime(0.0001, now);
+      vg.gain.exponentialRampToValueAtTime(gain * 0.55, now + 0.02);
+      vg.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      osc.connect(vg);
+      vg.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    }
+  }
+
+  function playHum(ctx, { duration = 0.28, hz = 180, gain = 0.16 } = {}) {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = hz;
+
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(gain, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(g);
+    g.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  function playPlosive(ctx, { duration = 0.14, freq = 240, gain = 0.18 } = {}) {
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = "square";
+    osc.frequency.value = freq;
+
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(gain, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    const filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.frequency.value = 900;
+
+    osc.connect(filt);
+    filt.connect(g);
+    g.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+  }
 
   function speakPhoneme(letter) {
     if (!soundOn) return;
-    try {
-      if (!("speechSynthesis" in window)) return;
-      window.speechSynthesis.cancel();
+    const ctx = ensureAudio();
+    if (!ctx) return;
 
-      const say = phoneme[letter] || "";
-      if (!say) return;
+    const l = String(letter).toLowerCase();
 
-      const u = new SpeechSynthesisUtterance(say);
-      u.lang = "nl-NL";
-      u.rate = 0.78;
-      u.pitch = 1.0;
-      window.speechSynthesis.speak(u);
-    } catch {}
+    // Dit zijn klanken, niet letternamen
+    if (l === "m") return playHum(ctx, { hz: 170, duration: 0.30, gain: 0.15 });
+    if (l === "l") return playHum(ctx, { hz: 210, duration: 0.22, gain: 0.12 });
+    if (l === "h") return playFricative(ctx, { voiced: false, cutoff: 1400, duration: 0.18, gain: 0.12 });
+
+    if (l === "s") return playFricative(ctx, { voiced: false, cutoff: 3200, duration: 0.24, gain: 0.14 });
+    if (l === "z") return playFricative(ctx, { voiced: true, cutoff: 3000, duration: 0.24, gain: 0.13, voiceHz: 170 });
+    if (l === "v") return playFricative(ctx, { voiced: true, cutoff: 1700, duration: 0.22, gain: 0.12, voiceHz: 160 });
+
+    if (l === "b") return playPlosive(ctx, { freq: 220, duration: 0.12, gain: 0.18 });
+    if (l === "k") return playPlosive(ctx, { freq: 280, duration: 0.11, gain: 0.16 });
+    if (l === "g") return playPlosive(ctx, { freq: 200, duration: 0.12, gain: 0.16 });
+    if (l === "w") {
+      playHum(ctx, { hz: 140, duration: 0.12, gain: 0.10 });
+      setTimeout(() => playHum(ctx, { hz: 200, duration: 0.16, gain: 0.11 }), 80);
+      return;
+    }
   }
 
   function beep(ok = true) {
     if (!soundOn) return;
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.value = ok ? 480 : 210;
-      g.gain.value = 0.055;
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start();
-      setTimeout(() => { o.stop(); ctx.close(); }, ok ? 90 : 130);
-    } catch {}
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = ok ? 520 : 210;
+
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.07, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + (ok ? 0.09 : 0.12));
+
+    osc.connect(g);
+    g.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + (ok ? 0.10 : 0.13));
   }
+
+  function setStatus(emoji) { uiStatus.textContent = emoji; }
+  function updateScore() { uiScore.textContent = `Score: ${score}`; }
 
   function setTarget(newTarget) {
     target = String(newTarget).toLowerCase();
@@ -209,13 +322,30 @@
   }
 
   function pickNewTarget() {
-    const next = activeLetters[Math.floor(rng() * activeLetters.length)];
-    setTarget(next);
+    setTarget(activeLetters[Math.floor(rng() * activeLetters.length)]);
   }
 
-  function setStatus(emoji) { uiStatus.textContent = emoji; }
-  function updateScore() { uiScore.textContent = `Score: ${score}`; }
+  // Bocht functies
+  function trackOffsetX(z) {
+    return curveAmp * Math.sin(((z + curvePhase) / curvePeriod) * Math.PI * 2);
+  }
 
+  function trackDeriv(z) {
+    // dx/dz afgeleid van sinus
+    const w = (Math.PI * 2) / curvePeriod;
+    return curveAmp * Math.cos(((z + curvePhase) / curvePeriod) * Math.PI * 2) * w;
+  }
+
+  function laneXAtZ(laneIndex, z) {
+    return trackOffsetX(z) + laneOffsets[laneIndex];
+  }
+
+  function yawAtZ(z) {
+    const d = trackDeriv(z);
+    return Math.atan(d);
+  }
+
+  // Letters
   function makeTextSprite(letter) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -242,16 +372,6 @@
     return sprite;
   }
 
-  function trackOffsetX(z) {
-    if (!curvesOn) return 0;
-    // z is negatief voor de horizon, curvePhase schuift langzaam mee
-    return curveAmp * Math.sin((z + curvePhase) / curvePeriod * Math.PI * 2);
-  }
-
-  function laneXAtZ(laneIndex, z) {
-    return trackOffsetX(z) + laneOffsets[laneIndex];
-  }
-
   function createPickup(letter, laneIndex, z) {
     const group = new THREE.Group();
 
@@ -266,28 +386,21 @@
     group.add(sprite);
 
     group.position.set(laneXAtZ(laneIndex, z), 0, z);
-    group.userData = {
-      letter: String(letter).toLowerCase(),
-      laneIndex,
-      hit: false
-    };
+    group.userData = { letter: String(letter).toLowerCase(), laneIndex, hit: false };
 
     scene.add(group);
     pickups.push(group);
   }
 
   function spawnSet() {
-    // Veel ruimte tussen sets, leestijd
-    const z = lastSpawnZ - 36 - rng() * 18;
+    const z = lastSpawnZ - 40 - rng() * 22;
     lastSpawnZ = z;
 
-    // Kies 1 baan voor de goede letter
     const correctLane = Math.floor(rng() * 3);
 
-    // Altijd 1 correcte letter
+    // Altijd precies één correcte letter
     createPickup(target, correctLane, z);
 
-    // Twee foute letters, nooit target
     const others = activeLetters.filter(l => l !== target);
     for (let i = 0; i < 3; i++) {
       if (i === correctLane) continue;
@@ -305,22 +418,38 @@
     car.userData.plane.material.needsUpdate = true;
   }
 
+  // Weg bouwen met segmenten die kunnen draaien
+  function makeRoadSegment() {
+    const geom = new THREE.PlaneGeometry(road.halfWidth * 2, road.segLen, 1, 1);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x111a24, roughness: 0.95, metalness: 0.0 });
+    const m = new THREE.Mesh(geom, mat);
+    m.rotation.x = -Math.PI / 2;
+    return m;
+  }
+
+  function makeLaneMark() {
+    const geom = new THREE.BoxGeometry(0.12, 0.02, road.segLen * 0.62);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0 });
+    const m = new THREE.Mesh(geom, mat);
+    return m;
+  }
+
   function setupThree() {
     scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0b0f14, 12, 160);
+    scene.fog = new THREE.Fog(0x0b0f14, 12, 170);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     document.body.appendChild(renderer.domElement);
 
-    // Orthographic camera
+    // Orthographic camera, dus rustig en leesbaar
     const aspect = window.innerWidth / window.innerHeight;
     const viewSize = 10.8;
     camera = new THREE.OrthographicCamera(
       -viewSize * aspect, viewSize * aspect,
       viewSize, -viewSize,
-      0.1, 500
+      0.1, 600
     );
     camera.position.set(0, 16, 12);
     camera.lookAt(0, 0.8, -18);
@@ -332,32 +461,30 @@
     dir.position.set(6, 12, 6);
     scene.add(dir);
 
-    // Weg
-    const roadGeom = new THREE.PlaneGeometry(12.5, 760);
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x111a24, roughness: 0.95, metalness: 0.0 });
-    road = new THREE.Mesh(roadGeom, roadMat);
-    road.rotation.x = -Math.PI / 2;
-    road.position.z = -260;
-    scene.add(road);
+    // Weg segmenten, elk segment draait mee met de bocht
+    for (let i = 0; i < road.segCount; i++) {
+      const seg = makeRoadSegment();
+      const z = -i * road.segLen;
+      seg.position.set(trackOffsetX(z), 0, z);
+      seg.rotation.y = yawAtZ(z);
+      seg.userData = { z };
+      scene.add(seg);
+      road.segments.push(seg);
 
-    // Rijstrookmarkeringen als segmenten die met de bocht mee schuiven
-    const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 5.4);
-    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0 });
+      // Lane marks op twee posities, links en rechts van midden
+      const leftMark = makeLaneMark();
+      leftMark.position.set(trackOffsetX(z) - 1.1, 0.02, z);
+      leftMark.rotation.y = yawAtZ(z);
+      leftMark.userData = { z, baseX: -1.1 };
+      scene.add(leftMark);
+      road.laneMarks.push(leftMark);
 
-    for (let i = 0; i < 44; i++) {
-      const z = -i * 16;
-
-      const a = new THREE.Mesh(lineGeom, lineMat);
-      a.position.set(laneXAtZ(1, z) - 1.1, 0.02, z);
-      a.userData = { baseX: -1.1 };
-      scene.add(a);
-      laneMarks.push(a);
-
-      const b = new THREE.Mesh(lineGeom, lineMat);
-      b.position.set(laneXAtZ(1, z) + 1.1, 0.02, z);
-      b.userData = { baseX: 1.1 };
-      scene.add(b);
-      laneMarks.push(b);
+      const rightMark = makeLaneMark();
+      rightMark.position.set(trackOffsetX(z) + 1.1, 0.02, z);
+      rightMark.rotation.y = yawAtZ(z);
+      rightMark.userData = { z, baseX: 1.1 };
+      scene.add(rightMark);
+      road.laneMarks.push(rightMark);
     }
 
     // Auto als plaatje
@@ -367,15 +494,13 @@
       left: texLoader.load("./car_left.png"),
       right: texLoader.load("./car_right.png"),
     };
-
     for (const k of Object.keys(carTex)) {
       carTex[k].colorSpace = THREE.SRGBColorSpace;
       carTex[k].anisotropy = 8;
     }
 
     const carGroup = new THREE.Group();
-
-    const carPlaneGeom = new THREE.PlaneGeometry(2.8, 2.8);
+    const carPlaneGeom = new THREE.PlaneGeometry(2.9, 2.9);
     const carPlaneMat = new THREE.MeshBasicMaterial({ map: carTex.straight, transparent: true });
     const carPlane = new THREE.Mesh(carPlaneGeom, carPlaneMat);
     carPlane.position.set(0, 1.15, 0);
@@ -399,13 +524,10 @@
       tex: carTex,
       blinkFrames: 0,
       wobbleFrames: 0,
-      wobbleDir: 0,
-      holdKey: "straight"
+      wobbleDir: 0
     };
 
     setTarget(activeLetters[0]);
-
-    // Eerste setjes
     for (let i = 0; i < 3; i++) spawnSet();
 
     window.addEventListener("resize", onResize);
@@ -429,14 +551,13 @@
     lane = Math.max(0, Math.min(2, lane + dir));
     if (lane === prev) return;
 
-    // Langer draaien zichtbaar
-    const blinkKey = dir < 0 ? "left" : "right";
-    car.userData.holdKey = blinkKey;
-    car.userData.blinkFrames = 18;    // langer dan eerst
-    setCarTexture(blinkKey);
+    // Auto blijft langer gedraaid, zodat kleuters het snappen
+    const key = dir < 0 ? "left" : "right";
+    setCarTexture(key);
+    car.userData.blinkFrames = 24;
 
-    // Langer wiebelen, maar nog steeds rustig
-    car.userData.wobbleFrames = 22;
+    // Langer wiebelen, zacht
+    car.userData.wobbleFrames = 30;
     car.userData.wobbleDir = dir < 0 ? -1 : 1;
   }
 
@@ -447,7 +568,7 @@
       const dz = Math.abs(p.position.z - carZ);
       const dx = Math.abs(p.position.x - car.position.x);
 
-      if (dz < 1.1 && dx < 1.0) {
+      if (dz < 1.15 && dx < 1.05) {
         p.userData.hit = true;
 
         const ok = p.userData.letter === target;
@@ -465,6 +586,7 @@
           beep(false);
           speakPhoneme(target);
         }
+
         updateScore();
         scene.remove(p);
       }
@@ -475,26 +597,23 @@
   function tick() {
     if (!running) return;
 
-    // Bocht fase, heel langzaam opschuiven
+    // Bochten schuiven rustig door
     curvePhase += speed * 10;
 
-    // Auto richting rijstrook, inclusief bocht offset
+    // Auto naar rijstrook, inclusief bocht
     const desiredX = laneXAtZ(lane, carZ);
     car.position.x += (desiredX - car.position.x) * 0.11;
 
-    // Gedraaide auto langer vasthouden
-    if (car?.userData?.blinkFrames > 0) {
+    // Auto flits, langer zichtbaar
+    if (car.userData.blinkFrames > 0) {
       car.userData.blinkFrames -= 1;
-      if (car.userData.blinkFrames === 0) {
-        setCarTexture("straight");
-        car.userData.holdKey = "straight";
-      }
+      if (car.userData.blinkFrames === 0) setCarTexture("straight");
     }
 
-    // Wiebelen langer
-    if (car?.userData?.wobbleFrames > 0) {
+    // Wiebelen
+    if (car.userData.wobbleFrames > 0) {
       car.userData.wobbleFrames -= 1;
-      const t = car.userData.wobbleFrames / 22;
+      const t = car.userData.wobbleFrames / 30;
       const wobble = Math.sin((1 - t) * Math.PI) * 0.16 * car.userData.wobbleDir;
       car.rotation.z = wobble;
       car.rotation.y = wobble * 0.25;
@@ -516,25 +635,40 @@
     }
     speed += (targetSpeed - speed) * 0.06;
 
-    // Weg schuift met bocht mee
-    road.position.x = trackOffsetX(road.position.z);
+    // Weg segmenten bewegen naar voren en worden opnieuw geplaatst achteraan
+    const forward = speed * 10;
+    const resetZ = -road.segCount * road.segLen;
 
-    // Markeringen bewegen en krijgen bocht offset
-    for (const m of laneMarks) {
-      m.position.z += speed * 10;
-      if (m.position.z > 10) m.position.z = -760;
+    for (const seg of road.segments) {
+      seg.position.z += forward;
 
-      const off = trackOffsetX(m.position.z);
-      m.position.x = off + m.userData.baseX;
+      if (seg.position.z > road.segLen) {
+        seg.position.z += resetZ;
+      }
+
+      const z = seg.position.z;
+      seg.position.x = trackOffsetX(z);
+      seg.rotation.y = yawAtZ(z);
     }
 
-    // Pickups bewegen, en blijven op de bochtige rijstrook
-    for (const p of pickups) {
-      p.position.z += speed * 10;
+    for (const m of road.laneMarks) {
+      m.position.z += forward;
 
-      // bocht volgen
-      const lx = laneXAtZ(p.userData.laneIndex, p.position.z);
-      p.position.x = lx;
+      if (m.position.z > road.segLen) {
+        m.position.z += resetZ;
+      }
+
+      const z = m.position.z;
+      m.position.x = trackOffsetX(z) + m.userData.baseX;
+      m.rotation.y = yawAtZ(z);
+    }
+
+    // Pickups bewegen en volgen de bocht
+    for (const p of pickups) {
+      p.position.z += forward;
+
+      const z = p.position.z;
+      p.position.x = laneXAtZ(p.userData.laneIndex, z);
 
       if (p.position.z > 10) {
         scene.remove(p);
@@ -543,12 +677,12 @@
     }
     pickups = pickups.filter(p => !p.userData.hit);
 
-    // Altijd genoeg lettersets
+    // Genoeg lettersets, telkens 3 met 1 juiste
     while (pickups.length < 9) spawnSet();
 
     checkCollisions();
 
-    // Camera volgt rustig
+    // Camera volgt zacht
     camera.position.x += (car.position.x - camera.position.x) * 0.06;
     camera.lookAt(camera.position.x, 0.8, -18);
 
@@ -563,23 +697,25 @@
     const left = () => moveLane(-1);
     const right = () => moveLane(1);
 
-    leftBtn.addEventListener("pointerdown", left);
-    rightBtn.addEventListener("pointerdown", right);
+    leftBtn.addEventListener("pointerdown", () => { ensureAudio(); left(); });
+    rightBtn.addEventListener("pointerdown", () => { ensureAudio(); right(); });
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft") left();
-      if (e.key === "ArrowRight") right();
+      if (e.key === "ArrowLeft") { ensureAudio(); left(); }
+      if (e.key === "ArrowRight") { ensureAudio(); right(); }
     });
 
     window.addEventListener("pointerdown", (e) => {
+      ensureAudio();
       const x = e.clientX / window.innerWidth;
       if (x < 0.40) left();
       else if (x > 0.60) right();
-    });
+    }, { passive: true });
   }
 
   function startGame() {
     if (!scene) setupThree();
+    ensureAudio();
     running = true;
     overlay.style.display = "none";
     tick();
@@ -589,25 +725,21 @@
 
   document.getElementById("tempoBtn").addEventListener("click", (e) => {
     if (baseSpeed > 0.024) {
-      baseSpeed = 0.020;
+      baseSpeed = 0.019;
       e.target.textContent = "Tempo: super rustig";
     } else {
-      baseSpeed = 0.030;
+      baseSpeed = 0.028;
       e.target.textContent = "Tempo: extra rustig";
     }
-  });
-
-  document.getElementById("curveBtn").addEventListener("click", (e) => {
-    curvesOn = !curvesOn;
-    e.target.textContent = curvesOn ? "Bochten: aan" : "Bochten: uit";
   });
 
   document.getElementById("soundBtn").addEventListener("click", (e) => {
     soundOn = !soundOn;
     e.target.textContent = soundOn ? "Geluid: aan" : "Geluid: uit";
-    if (!soundOn) {
-      try { window.speechSynthesis.cancel(); } catch {}
+    if (!soundOn && audioCtx) {
+      try { audioCtx.suspend(); } catch {}
     } else {
+      ensureAudio();
       speakPhoneme(target);
     }
   });
