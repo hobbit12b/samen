@@ -1,115 +1,390 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <title>Letter Race</title>
 <style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: #87CEEB;
-    font-family: Arial, sans-serif;
-  }
-  canvas {
-    display: block;
-    background: #555;
-  }
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
+  canvas { display:block; touch-action:none; }
   #ui {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    color: white;
-    font-size: 20px;
+    top: 12px;
+    left: 12px;
+    color: #fff;
+    font-size: 18px;
+    background: rgba(0,0,0,0.35);
+    padding: 10px 12px;
+    border-radius: 12px;
+    backdrop-filter: blur(4px);
   }
+  #ui small { display:block; opacity:0.9; margin-top:6px; font-size: 14px; }
 </style>
 </head>
 <body>
 
-<div id="ui">Energie: <span id="energy">100</span></div>
+<div id="ui">
+  Energie: <span id="energy">100</span>
+  <small>Stuur met vinger, of muis</small>
+</div>
+
 <canvas id="game"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
-let car = {
-  x: canvas.width / 2 - 25,
-  y: canvas.height - 120,
-  width: 50,
-  height: 80,
-  speed: 7
-};
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+const uiEnergy = document.getElementById("energy");
+
+const carImg = new Image();
+carImg.src = "car.png";
 
 let energy = 100;
-let letters = "AEIOUMKSTP".split("");
-let items = [];
+let roadScroll = 0;
 
-function spawnItem() {
+const letters = "AEIOUMKSTPRLN".split("");
+const items = [];
+
+const state = {
+  pointerX: canvas.width / 2,
+  pointerActive: false,
+  lastTime: performance.now()
+};
+
+const car = {
+  x: canvas.width / 2,
+  y: canvas.height * 0.78,
+  targetX: canvas.width / 2,
+  w: 140,
+  h: 90,
+  tilt: 0,
+  speed: 8
+};
+
+function roadWidthAt(y){
+  const t = y / canvas.height;     // 0 top, 1 bottom
+  const minW = canvas.width * 0.22;
+  const maxW = canvas.width * 0.88;
+  return minW + (maxW - minW) * (t ** 1.7);
+}
+
+function roadCenterXAt(y){
+  // kleine slinger kan later, nu recht met lichte “ademhaling”
+  const sway = Math.sin((roadScroll / 180) + y / 260) * (canvas.width * 0.02);
+  return canvas.width / 2 + sway;
+}
+
+function roadEdgesAt(y){
+  const w = roadWidthAt(y);
+  const cx = roadCenterXAt(y);
+  return { left: cx - w/2, right: cx + w/2, cx, w };
+}
+
+function spawnItem(){
+  const ySpawn = -40;
+  const edges = roadEdgesAt(canvas.height * 0.3);
+  const margin = 70;
+  const x = edges.left + margin + Math.random() * (edges.w - margin * 2);
+
   items.push({
-    x: Math.random() * (canvas.width - 40),
-    y: -40,
+    x,
+    y: ySpawn,
     letter: letters[Math.floor(Math.random() * letters.length)],
-    size: 40
+    size: 44,
+    vy: 3.6
   });
 }
 
-setInterval(spawnItem, 1500);
+setInterval(spawnItem, 1200);
 
-document.addEventListener("touchmove", e => {
-  car.x = e.touches[0].clientX - car.width / 2;
-});
+function setPointer(clientX){
+  state.pointerX = clientX;
+  state.pointerActive = true;
+}
 
-document.addEventListener("mousemove", e => {
-  car.x = e.clientX - car.width / 2;
-});
+canvas.addEventListener("touchstart", e => setPointer(e.touches[0].clientX), {passive:true});
+canvas.addEventListener("touchmove", e => setPointer(e.touches[0].clientX), {passive:true});
+canvas.addEventListener("mousedown", e => setPointer(e.clientX));
+canvas.addEventListener("mousemove", e => { if(state.pointerActive) setPointer(e.clientX); });
+window.addEventListener("mouseup", () => state.pointerActive = false);
+window.addEventListener("touchend", () => state.pointerActive = false, {passive:true});
 
-function update() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+function drawBackground(){
+  // lucht bovenin, iets donkerder onderin
+  const g = ctx.createLinearGradient(0,0,0,canvas.height);
+  g.addColorStop(0, "#5aa7ff");
+  g.addColorStop(0.45, "#3b76c8");
+  g.addColorStop(1, "#1a1a1a");
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
 
-  energy -= 0.03;
-  document.getElementById("energy").textContent = Math.floor(energy);
+function drawRoad(){
+  // gras links en rechts zichtbaar
+  ctx.fillStyle = "#2c8c3a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "red";
-  ctx.fillRect(car.x, car.y, car.width, car.height);
+  // weg als perspectief polygon
+  ctx.beginPath();
+  const topY = 0;
+  const botY = canvas.height;
 
-  items.forEach((item, i) => {
-    item.y += 3;
+  const top = roadEdgesAt(topY + 40);
+  const bot = roadEdgesAt(botY);
 
-    ctx.fillStyle = "yellow";
-    ctx.fillRect(item.x, item.y, item.size, item.size);
+  ctx.moveTo(top.left, topY);
+  ctx.lineTo(top.right, topY);
+  ctx.lineTo(bot.right, botY);
+  ctx.lineTo(bot.left, botY);
+  ctx.closePath();
 
-    ctx.fillStyle = "black";
-    ctx.font = "24px Arial";
-    ctx.fillText(item.letter, item.x + 12, item.y + 28);
+  ctx.fillStyle = "#4b4b4b";
+  ctx.fill();
 
-    if (
-      item.x < car.x + car.width &&
-      item.x + item.size > car.x &&
-      item.y < car.y + car.height &&
-      item.y + item.size > car.y
-    ) {
-      energy += 10;
-      items.splice(i,1);
+  // weg randen (witte lijnen)
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.beginPath();
+  ctx.moveTo(top.left + 2, topY);
+  ctx.lineTo(bot.left + 10, botY);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(top.right - 2, topY);
+  ctx.lineTo(bot.right - 10, botY);
+  ctx.stroke();
+
+  // rumble strip, rood wit, net naast de witte rand
+  function drawRumble(side){
+    for(let i=0; i<18; i++){
+      const y1 = i * (canvas.height/18);
+      const y2 = y1 + (canvas.height/18) * 0.55;
+
+      const e1 = roadEdgesAt(y1);
+      const e2 = roadEdgesAt(y2);
+
+      const left1 = side === "left" ? e1.left + 14 : e1.right - 14;
+      const left2 = side === "left" ? e2.left + 18 : e2.right - 18;
+
+      const w1 = side === "left" ? 18 : -18;
+      const w2 = side === "left" ? 22 : -22;
+
+      ctx.beginPath();
+      ctx.moveTo(left1, y1);
+      ctx.lineTo(left1 + w1, y1);
+      ctx.lineTo(left2 + w2, y2);
+      ctx.lineTo(left2, y2);
+      ctx.closePath();
+
+      const isRed = (i + Math.floor(roadScroll/90)) % 2 === 0;
+      ctx.fillStyle = isRed ? "#d63b3b" : "#f2f2f2";
+      ctx.fill();
     }
+  }
+  drawRumble("left");
+  drawRumble("right");
 
-    if(item.y > canvas.height){
-      items.splice(i,1);
-    }
-  });
+  // midden streep, gebroken, in perspectief
+  for(let i=0; i<16; i++){
+    const y = (i * (canvas.height/16)) + (roadScroll % (canvas.height/16));
+    const e = roadEdgesAt(y);
+    const e2 = roadEdgesAt(y + 60);
 
-  if(energy > 0){
-    requestAnimationFrame(update);
+    const cx1 = e.cx;
+    const cx2 = e2.cx;
+
+    const w = 10 + (y / canvas.height) * 8;
+    const dashH = 70 + (y / canvas.height) * 25;
+
+    ctx.fillStyle = "rgba(255,240,160,0.95)";
+    ctx.beginPath();
+    ctx.moveTo(cx1 - w/2, y);
+    ctx.lineTo(cx1 + w/2, y);
+    ctx.lineTo(cx2 + w/2, y + dashH);
+    ctx.lineTo(cx2 - w/2, y + dashH);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // schaduw vignette voor “diepte”
+  const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.7, canvas.width*0.2, canvas.width/2, canvas.height*0.7, canvas.width*0.9);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.35)");
+  ctx.fillStyle = v;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function drawCar(){
+  // schaal naar scherm
+  const base = Math.min(canvas.width, canvas.height);
+  const carW = Math.max(110, base * 0.18);
+  const carH = carW * 0.62;
+
+  car.w = carW;
+  car.h = carH;
+
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.tilt);
+
+  // zachte schaduw onder auto
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.beginPath();
+  ctx.ellipse(0, carH*0.36, carW*0.34, carH*0.22, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  if(carImg.complete && carImg.naturalWidth){
+    ctx.drawImage(carImg, -carW/2, -carH/2, carW, carH);
   } else {
-    ctx.fillStyle = "white";
-    ctx.font = "40px Arial";
-    ctx.fillText("Leeg! Probeer opnieuw", canvas.width/2 - 150, canvas.height/2);
+    // fallback als afbeelding nog laadt
+    ctx.fillStyle = "red";
+    ctx.fillRect(-carW/2, -carH/2, carW, carH);
+  }
+
+  ctx.restore();
+}
+
+function drawItems(){
+  items.forEach(item => {
+    // letter tegeltje met beetje perspectief mee
+    const scale = 0.85 + (item.y / canvas.height) * 0.55;
+    const size = item.size * scale;
+
+    ctx.fillStyle = "rgba(255,215,80,0.95)";
+    ctx.beginPath();
+    ctx.roundRect(item.x - size/2, item.y - size/2, size, size, 10);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = "#111";
+    ctx.font = `bold ${Math.floor(26*scale)}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(item.letter, item.x, item.y + 1);
+  });
+}
+
+CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  this.beginPath();
+  this.moveTo(x + rr, y);
+  this.arcTo(x + w, y, x + w, y + h, rr);
+  this.arcTo(x + w, y + h, x, y + h, rr);
+  this.arcTo(x, y + h, x, y, rr);
+  this.arcTo(x, y, x + w, y, rr);
+  this.closePath();
+  return this;
+};
+
+function clampToRoad(x, y){
+  const e = roadEdgesAt(y);
+  const pad = car.w * 0.32;
+  return Math.min(e.right - pad, Math.max(e.left + pad, x));
+}
+
+function update(dt){
+  // energie en scroll
+  energy -= 0.025 * dt;
+  energy = Math.max(0, Math.min(140, energy));
+  uiEnergy.textContent = Math.floor(energy);
+
+  roadScroll += car.speed * dt;
+
+  // doel x is pointer, maar altijd binnen de weg
+  car.targetX = clampToRoad(state.pointerX, car.y);
+
+  // smooth steering
+  const dx = car.targetX - car.x;
+  car.x += dx * (0.08 * dt);
+
+  // natuurlijke tilt op basis van stuurbeweging
+  const desiredTilt = Math.max(-0.35, Math.min(0.35, dx / (canvas.width * 0.6)));
+  car.tilt += (desiredTilt - car.tilt) * (0.1 * dt);
+
+  // items bewegen en collision
+  for(let i = items.length - 1; i >= 0; i--){
+    const it = items[i];
+    it.y += it.vy * (dt * 1.0);
+
+    // binnen weg houden (zodat het eerlijk blijft)
+    const e = roadEdgesAt(it.y);
+    const margin = 60;
+    it.x = Math.min(e.right - margin, Math.max(e.left + margin, it.x));
+
+    // collision met auto
+    const carW = car.w * 0.75;
+    const carH = car.h * 0.75;
+
+    if(
+      Math.abs(it.x - car.x) < (carW/2) &&
+      Math.abs(it.y - car.y) < (carH/2)
+    ){
+      energy = Math.min(140, energy + 12);
+      items.splice(i, 1);
+      continue;
+    }
+
+    if(it.y > canvas.height + 120){
+      items.splice(i, 1);
+    }
   }
 }
 
-update();
-</script>
+function draw(){
+  drawBackground();
+  drawRoad();
+  drawItems();
+  drawCar();
 
+  if(energy <= 0){
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 44px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Oeps, leeg", canvas.width/2, canvas.height/2 - 20);
+    ctx.font = "22px Arial";
+    ctx.fillText("Pak letters om op te laden", canvas.width/2, canvas.height/2 + 28);
+    ctx.fillText("Tik om opnieuw te starten", canvas.width/2, canvas.height/2 + 62);
+  }
+}
+
+function loop(now){
+  const dtMs = now - state.lastTime;
+  state.lastTime = now;
+
+  // dt in “frames” van 60 fps, zodat gedrag stabiel blijft
+  const dt = Math.min(3, dtMs / (1000/60));
+
+  if(energy > 0){
+    update(dt);
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// opnieuw starten bij leeg
+function restart(){
+  if(energy > 0) return;
+  energy = 100;
+  items.length = 0;
+}
+canvas.addEventListener("touchstart", restart, {passive:true});
+canvas.addEventListener("mousedown", restart);
+
+</script>
 </body>
 </html>
