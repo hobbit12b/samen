@@ -95,7 +95,7 @@ const SPEED_MIN = 0.70;
 const SPEED_MAX = 2.20;
 const RELAX_TO_ONE = 0.004;
 
-/* ===== Weg geometrie ===== */
+/* weg geometrie */
 function roadWidthAt(y){
   const t = clamp(y / canvas.height, 0, 1);
   return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
@@ -116,7 +116,7 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* ===== Bomen: boven traag, onder snel, geen eind sprong ===== */
+/* ===== Bomen: veel sterker versnellen, geen rare sprongen ===== */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -126,16 +126,20 @@ function spawnTree(){
   if(trees.length >= MAX_TREES) return;
 
   const side = Math.random() < 0.5 ? "left" : "right";
-  const distanceFactor = 0.90 + Math.random() * 0.18;
-  const sizeSeed = 0.90 + Math.random() * 0.25;
+
+  // dicht bij de weg
+  const distanceFactor = 0.90 + Math.random() * 0.14;
+
+  // variatie in boomgrootte
+  const sizeSeed = 0.88 + Math.random() * 0.28;
 
   trees.push({
     side,
-    baseY: -420,
-    vBase: 2.6,
+    baseY: -440,
+    vBase: 2.2,
     distanceFactor,
     sizeSeed,
-    lastH: 200
+    lastH: 260
   });
 }
 
@@ -143,7 +147,7 @@ function treeX(tr){
   const e = roadEdgesAt(tr.baseY);
   const t = clamp(tr.baseY / canvas.height, 0, 1);
 
-  const base = 46 + t * 180;
+  const base = 44 + t * 175;
   const margin = base * tr.distanceFactor;
 
   return tr.side === "left" ? (e.left - margin) : (e.right + margin);
@@ -152,8 +156,9 @@ function treeX(tr){
 function treeSize(tr){
   const t = clamp(tr.baseY / canvas.height, 0, 1);
 
-  const p = t ** 1.05;
-  const w = (18 + p * 1020) * tr.sizeSeed;
+  // onder echt enorm
+  const p = t ** 1.02;
+  const w = (16 + p * 1120) * tr.sizeSeed;
   const h = w * 1.10;
 
   return { w, h };
@@ -161,7 +166,7 @@ function treeSize(tr){
 
 function updateTrees(dt){
   treeSpawnTimer += dt;
-  const threshold = (TREE_SPAWN_FRAMES_BASE / tempoFactor);
+  const threshold = TREE_SPAWN_FRAMES_BASE / tempoFactor;
   if(treeSpawnTimer > threshold){
     treeSpawnTimer = 0;
     spawnTree();
@@ -172,23 +177,22 @@ function updateTrees(dt){
 
     const t = clamp(tr.baseY / canvas.height, 0, 1);
 
-    // versnelling: boven langzaam, onder steeds sneller
-    // zachte curve, zonder explosie op het einde
-    const accel = 0.25 + (t * t) * 5.2;
+    // veel sterker oplopende versnelling
+    // boven traag, daarna snel snel sneller
+    const accel = 0.18 + (t ** 1.75) * 14.0;
 
     let dy = (tr.vBase * accel * tempoFactor) * dt;
 
-    // vang frame spikes af, voorkomt die laatste rare sprong
-    const maxStep = 28 * dt * tempoFactor;
+    // cap tegen frame spikes, maar hoog genoeg dat het niet smoort
+    const maxStep = 90 * dt * tempoFactor;
     dy = Math.min(dy, maxStep);
 
     tr.baseY += dy;
 
-    // onthoud hoogte zodat we netjes kunnen opruimen
     tr.lastH = treeSize(tr).h;
 
-    // verwijder voordat hij een laatste frame onderin kan flitsen
-    if(tr.baseY - tr.lastH > canvas.height + 120) trees.splice(i, 1);
+    // verwijder op tijd, zodat je geen laatste "hik" ziet
+    if(tr.baseY - tr.lastH > canvas.height + 80) trees.splice(i, 1);
   }
 }
 
@@ -200,7 +204,6 @@ function drawTrees(){
     const topY = tr.baseY - h;
     const shadowY = tr.baseY + h * 0.06;
 
-    // schaduw zit vast aan dezelfde grondlijn als de boom
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
     ctx.ellipse(x, shadowY, w * 0.34, h * 0.12, 0, 0, Math.PI * 2);
@@ -227,7 +230,7 @@ function drawGrass(){
   }
 }
 
-/* ===== Weg tekenen ===== */
+/* ===== Weg tekenen, strepen stabiel via wereldafstand + projectie ===== */
 function drawRoad(){
   const pts = [];
   for(let y=0; y<=canvas.height+28; y+=28){
@@ -283,31 +286,44 @@ function drawRoad(){
   for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 3, pts[i].y);
   ctx.stroke();
 
-  // middenstrepen
-  // fix: onder blijven open stukken zichtbaar
-  // fix: boven staan strepen dichter op elkaar
-  const scroll = roadScroll;
+  // middenstrepen, stabiel patroon zonder overlap
+  // we doen dit in "afstand langs de weg" en projecteren naar y
+  const H = canvas.height;
 
-  for(const p of pts){
-    const t = clamp(p.y / canvas.height, 0, 1);
+  // perspectief projectie: s is afstand, y is scherm
+  const projScale = 0.0042;
+  function yFromS(s){
+    return H / (1 + s * projScale);
+  }
 
-    const period = lerp(56, 240, t);     // boven dichter, onder ruimer
-    let dashLen = lerp(10, 120, t);      // boven kort, onder lang
+  const periodS = 260;   // afstand tussen strepen
+  const dashS   = 105;   // streeplengte in afstand
+  const sOffset = (periodS - (roadScroll % periodS)) % periodS;
+
+  // teken van onder (s klein) naar boven (s groot)
+  // stop zodra y boven het scherm valt
+  for(let s = sOffset; ; s += periodS){
+    const y1 = yFromS(s);
+    if(y1 < -30) break;
+
+    const y2 = yFromS(s + dashS);
+
+    // midden x op basis van wegcentrum op die hoogte
+    const cx = roadCenterXAt(y1);
+
+    const t = clamp(y1 / H, 0, 1);
+
+    // lijn dikte groeit mee naar beneden
     const dashW = lerp(8, 22, t);
 
-    // cruciaal: nooit langer dan 40 procent van de periode
-    dashLen = Math.min(dashLen, period * 0.40);
-
-    const phase = mod(p.y + scroll, period);
-    if(phase > dashLen) continue;
-
+    // veiligheid: houd altijd opening zichtbaar
+    // doordat periodS constant is en dashS kleiner blijft, blijft dat open
     ctx.strokeStyle = "rgba(255,245,190,0.75)";
     ctx.lineWidth = dashW;
     ctx.lineCap = "round";
-
     ctx.beginPath();
-    ctx.moveTo(p.cx, p.y);
-    ctx.lineTo(p.cx, p.y + dashLen);
+    ctx.moveTo(cx, y1);
+    ctx.lineTo(cx, y2);
     ctx.stroke();
   }
 }
