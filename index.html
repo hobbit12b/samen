@@ -38,7 +38,6 @@
     border: 2px solid rgba(255,255,255,0.35);
     font-weight: 700;
   }
-  #ui small { display:block; opacity:0.9; margin-top:6px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -49,7 +48,6 @@
     <span class="badge">Opdracht: <span class="targetBox" id="targetLetter">A</span></span>
     <span class="badge">Goed: <span id="score">0</span></span>
   </div>
-  <small>Stuur met vinger, of muis</small>
 </div>
 
 <canvas id="game"></canvas>
@@ -79,25 +77,8 @@ const carStraightImg = loadImg("car_straight.png");
 const carLeftImg = loadImg("car_left.png");
 const carRightImg = loadImg("car_right.png");
 
-CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-  const rr = Math.min(r, w/2, h/2);
-  this.beginPath();
-  this.moveTo(x + rr, y);
-  this.arcTo(x + w, y, x + w, y + h, rr);
-  this.arcTo(x + w, y + h, x, y + h, rr);
-  this.arcTo(x, y + h, x, y, rr);
-  this.arcTo(x, y, x + w, y, rr);
-  this.closePath();
-  return this;
-};
-
-function mod(n, m){
-  return ((n % m) + m) % m;
-}
-
-function clamp(v, a, b){
-  return Math.max(a, Math.min(b, v));
-}
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function mod(n,m){ return ((n%m)+m)%m; }
 
 let energy = 100;
 let roadScroll = 0;
@@ -105,410 +86,181 @@ let score = 0;
 
 const letters = "AEIOUMKSTPRLN".split("");
 
-const state = {
-  pointerX: canvas.width / 2,
-  pointerActive: false,
-  lastTime: performance.now()
-};
+const state = { pointerX: canvas.width/2, pointerActive:false, lastTime:performance.now() };
 
-const car = {
-  x: canvas.width / 2,
-  y: canvas.height * 0.78,
-  targetX: canvas.width / 2,
-  w: 140,
-  h: 90,
-  tilt: 0,
-  speed: 8,
-  steerDx: 0
-};
+const car = { x: canvas.width/2, y: canvas.height*0.78, targetX: canvas.width/2, w:140, h:90, tilt:0, speed:8, steerDx:0 };
 
 const items = [];
 
-/* opdrachtletter */
-let targetLetter = letters[Math.floor(Math.random() * letters.length)];
+let targetLetter = letters[Math.floor(Math.random()*letters.length)];
 uiTarget.textContent = targetLetter;
-
 let targetTimer = 0;
-const TARGET_SWITCH_SECONDS = 8;
 
-let feedback = { text: "", t: 0 };
-function setFeedback(text){
-  feedback.text = text;
-  feedback.t = 60;
-}
-
-/* weg logica, rustig, bijna recht */
 function roadWidthAt(y){
-  const tRaw = y / canvas.height;
-  const t = clamp(tRaw, 0, 1);   // belangrijk, voorkomt NaN bij negatieve y
-  const minW = canvas.width * 0.30;
-  const maxW = canvas.width * 0.90;
-  return minW + (maxW - minW) * (t ** 1.6);
+  const t = clamp(y/canvas.height,0,1);
+  return canvas.width*0.30 + (canvas.width*0.90-canvas.width*0.30)*(t**1.6);
 }
-
 function roadCenterXAt(y){
-  const tRaw = y / canvas.height;
-  const t = clamp(tRaw, 0, 1);   // belangrijk, voorkomt NaN bij negatieve y
-
-  const base = canvas.width / 2;
-  const slow = Math.sin(roadScroll / 680) * (canvas.width * 0.035);
-  const influence = (1 - t) ** 1.15;
-
-  return base + slow * influence;
+  const t = clamp(y/canvas.height,0,1);
+  const slow = Math.sin(roadScroll/680)*(canvas.width*0.035);
+  return canvas.width/2 + slow*(1-t);
 }
-
 function roadEdgesAt(y){
   const w = roadWidthAt(y);
   const cx = roadCenterXAt(y);
-  return { left: cx - w/2, right: cx + w/2, cx, w };
+  return {left:cx-w/2,right:cx+w/2,cx,w};
 }
-
-function sampleRoadPoints(stepY = 26){
-  const pts = [];
-  for(let y = 0; y <= canvas.height + stepY; y += stepY){
-    const e = roadEdgesAt(y);
-    pts.push({ y, left: e.left, right: e.right, cx: e.cx, w: e.w });
+function sampleRoadPoints(step=26){
+  const pts=[];
+  for(let y=0;y<=canvas.height+step;y+=step){
+    const e=roadEdgesAt(y);
+    pts.push({y,left:e.left,right:e.right,cx:e.cx});
   }
   return pts;
 }
 
 function drawBackground(){
-  const g = ctx.createLinearGradient(0,0,0,canvas.height);
-  g.addColorStop(0, "#74c0ff");
-  g.addColorStop(0.5, "#3f86d9");
-  g.addColorStop(1, "#1a1a1a");
-  ctx.fillStyle = g;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  ctx.fillStyle = "#3aa64b";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const blobCount = 10;
-  for(let i=0; i<blobCount; i++){
-    const x = (i * canvas.width / blobCount) + (Math.sin((roadScroll/220) + i) * 18);
-    const y = (i * 130 + (roadScroll*1.2)) % (canvas.height + 160) - 80;
-    ctx.fillStyle = "rgba(0,0,0,0.05)";
-    ctx.beginPath();
-    ctx.ellipse(x, y, 120, 55, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-}
-
-function fillRoadPolygon(pts){
-  ctx.beginPath();
-  ctx.moveTo(pts[0].left, pts[0].y);
-  for(let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].left, pts[i].y);
-  for(let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i].right, pts[i].y);
-  ctx.closePath();
-
-  ctx.fillStyle = "#505050";
-  ctx.fill();
-}
-
-/* nieuwe rand styling: dunne lijn plus dikkere band met perspectief */
-function drawPerspectiveBand(pts, side){
-  // band net buiten de weg, rustig van kleur
-  // boven dun, onder dik
-  for(let i = 0; i < pts.length - 1; i++){
-    const p1 = pts[i];
-    const p2 = pts[i+1];
-
-    const t = clamp(p1.y / canvas.height, 0, 1);
-    const bandW = 2 + t * 10;  // perspectief dikte
-
-    const dir = side === "left" ? -1 : 1;
-
-    // iets buiten de weg leggen
-    const x1 = (side === "left" ? p1.left : p1.right) + dir * (bandW * 0.7);
-    const x2 = (side === "left" ? p2.left : p2.right) + dir * (bandW * 0.7);
-
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = bandW;
-    ctx.lineCap = "round";
-
-    ctx.beginPath();
-    ctx.moveTo(x1, p1.y);
-    ctx.lineTo(x2, p2.y);
-    ctx.stroke();
-  }
-}
-
-function drawThinEdgeLine(pts, side){
-  // dunne witte lijn op de asfalt rand, blijft rustig
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-
-  ctx.beginPath();
-  const x0 = side === "left" ? pts[0].left + 3 : pts[0].right - 3;
-  ctx.moveTo(x0, pts[0].y);
-
-  for(let i=1; i<pts.length; i++){
-    const x = side === "left" ? pts[i].left + 3 : pts[i].right - 3;
-    ctx.lineTo(x, pts[i].y);
-  }
-  ctx.stroke();
-}
-
-function drawInnerShadow(pts, side){
-  // zachte schaduw op de binnenrand van de weg, geeft diepte zonder strepen
-  for(let i = 0; i < pts.length - 1; i++){
-    const p = pts[i];
-    const t = clamp(p.y / canvas.height, 0, 1);
-
-    const h = 18 + t * 22;
-    const inset = 9 + t * 7;
-
-    const x = side === "left" ? p.left + inset : p.right - inset;
-
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
-    ctx.lineWidth = 10 + t * 8;
-    ctx.lineCap = "round";
-
-    ctx.beginPath();
-    ctx.moveTo(x, p.y);
-    ctx.lineTo(x, p.y + h);
-    ctx.stroke();
-  }
-}
-
-function drawCenterDashes(pts){
-  const scroll = roadScroll % 240;
-
-  for(let i = 0; i < pts.length - 1; i++){
-    const p = pts[i];
-    const t = clamp(p.y / canvas.height, 0, 1);
-
-    const every = 210 + t * 80;
-    const len = 70 + t * 55;
-
-    const phase = mod((p.y - scroll), every);
-    if(phase > len) continue;
-
-    ctx.strokeStyle = "rgba(255,245,190,0.65)";
-    ctx.lineWidth = 10 + t * 8;
-    ctx.lineCap = "round";
-
-    ctx.beginPath();
-    ctx.moveTo(p.cx, p.y);
-    ctx.lineTo(p.cx, p.y + 26 + t * 44);
-    ctx.stroke();
-  }
+  const g=ctx.createLinearGradient(0,0,0,canvas.height);
+  g.addColorStop(0,"#74c0ff"); g.addColorStop(.5,"#3f86d9"); g.addColorStop(1,"#1a1a1a");
+  ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#3aa64b"; ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 
 function drawRoad(){
-  const pts = sampleRoadPoints(26);
+  const pts=sampleRoadPoints();
+  ctx.beginPath();
+  ctx.moveTo(pts[0].left,pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].left,pts[i].y);
+  for(let i=pts.length-1;i>=0;i--) ctx.lineTo(pts[i].right,pts[i].y);
+  ctx.closePath(); ctx.fillStyle="#505050"; ctx.fill();
 
-  fillRoadPolygon(pts);
+  // perspectivische band, beneden breder
+  for(let i=0;i<pts.length-1;i++){
+    const p1=pts[i], p2=pts[i+1];
+    const t=clamp(p1.y/canvas.height,0,1);
+    const w=3 + t*18; // breder onder
+    ctx.strokeStyle="rgba(255,255,255,0.2)";
+    ctx.lineWidth=w;
+    ctx.beginPath();
+    ctx.moveTo(p1.left - w*0.6, p1.y);
+    ctx.lineTo(p2.left - w*0.6, p2.y);
+    ctx.stroke();
 
-  // binnen schaduw
-  drawInnerShadow(pts, "left");
-  drawInnerShadow(pts, "right");
+    ctx.beginPath();
+    ctx.moveTo(p1.right + w*0.6, p1.y);
+    ctx.lineTo(p2.right + w*0.6, p2.y);
+    ctx.stroke();
+  }
 
-  // extra band buiten de weg, perspectief dikte
-  drawPerspectiveBand(pts, "left");
-  drawPerspectiveBand(pts, "right");
+  ctx.strokeStyle="rgba(255,255,255,0.6)";
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].left+3,pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].left+3,pts[i].y);
+  ctx.stroke();
 
-  // dunne witte lijn op de rand
-  drawThinEdgeLine(pts, "left");
-  drawThinEdgeLine(pts, "right");
+  ctx.beginPath();
+  ctx.moveTo(pts[0].right-3,pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].right-3,pts[i].y);
+  ctx.stroke();
 
-  drawCenterDashes(pts);
-
-  const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.72, canvas.width*0.2, canvas.width/2, canvas.height*0.72, canvas.width*0.95);
-  v.addColorStop(0, "rgba(0,0,0,0)");
-  v.addColorStop(1, "rgba(0,0,0,0.30)");
-  ctx.fillStyle = v;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  // middenlijn
+  const scroll=roadScroll%240;
+  for(const p of pts){
+    const t=clamp(p.y/canvas.height,0,1);
+    const phase=mod(p.y-scroll,240);
+    if(phase>80) continue;
+    ctx.strokeStyle="rgba(255,245,190,0.65)";
+    ctx.lineWidth=10+t*8;
+    ctx.beginPath();
+    ctx.moveTo(p.cx,p.y);
+    ctx.lineTo(p.cx,p.y+26+t*44);
+    ctx.stroke();
+  }
 }
 
 function chooseCarSprite(){
-  if(car.steerDx < -18) return carLeftImg;
-  if(car.steerDx > 18) return carRightImg;
+  if(car.steerDx<-18) return carLeftImg;
+  if(car.steerDx>18) return carRightImg;
   return carStraightImg;
 }
 
 function drawCar(){
-  const base = Math.min(canvas.width, canvas.height);
-  const carW = Math.max(144, base * 0.228);
-  const carH = carW * 0.62;
+  const base=Math.min(canvas.width,canvas.height);
+  const carW=Math.max(144,base*0.228);
+  const carH=carW*0.62;
+  car.w=carW; car.h=carH;
 
-  car.w = carW;
-  car.h = carH;
-
-  const img = chooseCarSprite();
-
-  ctx.save();
-  ctx.translate(car.x, car.y);
-  ctx.rotate(car.tilt * 0.45);
-
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.beginPath();
-  ctx.ellipse(0, carH*0.36, carW*0.34, carH*0.22, 0, 0, Math.PI*2);
-  ctx.fill();
-
-  if(img.complete && img.naturalWidth){
-    ctx.drawImage(img, -carW/2, -carH/2, carW, carH);
-  } else {
-    ctx.fillStyle = "red";
-    ctx.fillRect(-carW/2, -carH/2, carW, carH);
-  }
-
+  const img=chooseCarSprite();
+  ctx.save(); ctx.translate(car.x,car.y); ctx.rotate(car.tilt*0.45);
+  ctx.fillStyle="rgba(0,0,0,0.22)";
+  ctx.beginPath(); ctx.ellipse(0,carH*.36,carW*.34,carH*.22,0,0,Math.PI*2); ctx.fill();
+  if(img.complete && img.naturalWidth) ctx.drawImage(img,-carW/2,-carH/2,carW,carH);
   ctx.restore();
 }
 
-function drawItemTile(x, y, letter, isTarget){
-  const scale = 0.88 + (clamp(y, 0, canvas.height) / canvas.height) * 0.55;
-  const size = 46 * scale;
-
-  const fill = isTarget ? "rgba(170,225,255,0.90)" : "rgba(255,220,120,0.92)";
-  const stroke = isTarget ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.20)";
-
-  ctx.fillStyle = fill;
-  ctx.roundRect(x - size/2, y - size/2, size, size, 12);
-  ctx.fill();
-
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.fillStyle = "rgba(10,10,10,0.92)";
-  ctx.font = `700 ${Math.floor(26*scale)}px Arial`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(letter, x, y + 1);
+function drawItem(it){
+  const scale=0.9+(clamp(it.y,0,canvas.height)/canvas.height)*0.55;
+  const size=46*scale;
+  ctx.fillStyle= it.isTarget? "rgba(170,225,255,0.95)" : "rgba(255,220,120,0.95)";
+  ctx.fillRect(it.x-size/2,it.y-size/2,size,size);
+  ctx.fillStyle="#111";
+  ctx.font=`700 ${Math.floor(26*scale)}px Arial`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(it.letter,it.x,it.y);
 }
 
-function drawItems(){
-  for(const it of items){
-    drawItemTile(it.x, it.y, it.letter, it.isTarget);
-  }
+function drawItems(){ items.forEach(drawItem); }
+
+function clampToRoad(x,y){
+  const e=roadEdgesAt(y);
+  const pad=car.w*.34;
+  return Math.min(e.right-pad,Math.max(e.left+pad,x));
 }
 
-function setPointer(clientX){
-  state.pointerX = clientX;
-  state.pointerActive = true;
+function spawnLetter(){
+  if(items.length>2) return; // minder tegelijk
+  const e=roadEdgesAt(canvas.height*.34);
+  const x=e.left+120+Math.random()*(e.w-240);
+  const isTarget=Math.random()<0.3;
+  items.push({x,y:-60,letter:isTarget?targetLetter:letters[Math.floor(Math.random()*letters.length)],isTarget,vy:5.2});
 }
 
-canvas.addEventListener("touchstart", e => setPointer(e.touches[0].clientX), {passive:true});
-canvas.addEventListener("touchmove", e => setPointer(e.touches[0].clientX), {passive:true});
-canvas.addEventListener("mousedown", e => setPointer(e.clientX));
-canvas.addEventListener("mousemove", e => { if(state.pointerActive) setPointer(e.clientX); });
-window.addEventListener("mouseup", () => state.pointerActive = false);
-window.addEventListener("touchend", () => state.pointerActive = false, {passive:true});
-
-function clampToRoad(x, y){
-  const e = roadEdgesAt(y);
-  const pad = car.w * 0.34;
-  return Math.min(e.right - pad, Math.max(e.left + pad, x));
-}
-
-function spawnLetter(isTarget){
-  const ySpawn = -50;
-  const e = roadEdgesAt(canvas.height * 0.34);
-  const margin = 95;
-
-  const x = e.left + margin + Math.random() * (e.w - margin * 2);
-
-  items.push({
-    x,
-    y: ySpawn,
-    letter: isTarget ? targetLetter : letters[Math.floor(Math.random() * letters.length)],
-    isTarget,
-    vy: 3.5
-  });
-}
-
-let spawnTimer = 0;
-function maybeSpawn(dt){
-  spawnTimer += dt;
-
-  if(spawnTimer > 66){
-    spawnTimer = 0;
-
-    const wantTarget = Math.random() < 0.25;
-    spawnLetter(wantTarget);
-  }
-}
-
-function updateTargetLetter(dt){
-  targetTimer += dt / 60;
-
-  if(targetTimer >= TARGET_SWITCH_SECONDS){
-    targetTimer = 0;
-
-    let next = targetLetter;
-    while(next === targetLetter){
-      next = letters[Math.floor(Math.random() * letters.length)];
-    }
-    targetLetter = next;
-    uiTarget.textContent = targetLetter;
-    setFeedback("Nieuwe opdracht");
-  }
-}
+let spawnTimer=0;
 
 function update(dt){
-  energy -= 0.022 * dt;
-  energy = Math.max(0, Math.min(140, energy));
-  uiEnergy.textContent = Math.floor(energy);
+  energy-=0.02*dt; energy=Math.max(0,Math.min(140,energy));
+  uiEnergy.textContent=Math.floor(energy);
+  roadScroll+=car.speed*dt;
 
-  roadScroll += car.speed * dt;
+  car.targetX=clampToRoad(state.pointerX,car.y);
+  const dx=car.targetX-car.x; car.steerDx=dx;
+  car.x+=dx*(0.075*dt);
+  car.tilt+=(Math.max(-.2,Math.min(.2,dx/(canvas.width*.95)))-car.tilt)*(.08*dt);
 
-  car.targetX = clampToRoad(state.pointerX, car.y);
+  spawnTimer+=dt;
+  if(spawnTimer>120){ spawnTimer=0; spawnLetter(); }
 
-  const dx = car.targetX - car.x;
-  car.steerDx = dx;
-
-  car.x += dx * (0.075 * dt);
-
-  const desiredTilt = Math.max(-0.20, Math.min(0.20, dx / (canvas.width * 0.95)));
-  car.tilt += (desiredTilt - car.tilt) * (0.08 * dt);
-
-  maybeSpawn(dt);
-  updateTargetLetter(dt);
-
-  for(let i = items.length - 1; i >= 0; i--){
-    const it = items[i];
-
-    it.y += it.vy * dt;
-
-    const e = roadEdgesAt(it.y);
-    const margin = 85;
-    it.x = Math.min(e.right - margin, Math.max(e.left + margin, it.x));
-
-    const hitW = car.w * 0.72;
-    const hitH = car.h * 0.72;
-
-    const hit = Math.abs(it.x - car.x) < (hitW/2) && Math.abs(it.y - car.y) < (hitH/2);
-
-    if(hit){
-      if(it.isTarget){
-        score += 1;
-        uiScore.textContent = score;
-        energy = Math.min(140, energy + 18);
-        setFeedback("Goed");
-      } else {
-        energy = Math.min(140, energy + 8);
-      }
-      items.splice(i, 1);
-      continue;
-    }
-
-    if(it.y > canvas.height + 160) items.splice(i, 1);
+  targetTimer+=dt/60;
+  if(targetTimer>8){
+    targetTimer=0;
+    targetLetter=letters[Math.floor(Math.random()*letters.length)];
+    uiTarget.textContent=targetLetter;
   }
 
-  if(feedback.t > 0) feedback.t -= dt;
-}
+  for(let i=items.length-1;i>=0;i--){
+    const it=items[i];
+    it.y+=it.vy*dt;
+    const e=roadEdgesAt(it.y);
+    it.x=clamp(it.x,e.left+90,e.right-90);
 
-function drawFeedback(){
-  if(feedback.t <= 0) return;
-
-  const alpha = Math.min(1, feedback.t / 40);
-  ctx.fillStyle = `rgba(255,255,255,${0.85 * alpha})`;
-  ctx.font = "700 36px Arial";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(feedback.text, canvas.width/2, canvas.height*0.18);
+    if(Math.abs(it.x-car.x)<car.w*.36 && Math.abs(it.y-car.y)<car.h*.36){
+      if(it.isTarget){ score++; uiScore.textContent=score; energy+=18; }
+      else energy+=8;
+      items.splice(i,1); continue;
+    }
+    if(it.y>canvas.height+160) items.splice(i,1);
+  }
 }
 
 function draw(){
@@ -516,45 +268,19 @@ function draw(){
   drawRoad();
   drawItems();
   drawCar();
-  drawFeedback();
-
-  if(energy <= 0){
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = "#fff";
-    ctx.font = "700 44px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Oeps, leeg", canvas.width/2, canvas.height/2 - 20);
-    ctx.font = "22px Arial";
-    ctx.fillText("Pak letters om op te laden", canvas.width/2, canvas.height/2 + 28);
-    ctx.fillText("Tik om opnieuw te starten", canvas.width/2, canvas.height/2 + 62);
-  }
 }
 
 function loop(now){
-  const dtMs = now - state.lastTime;
-  state.lastTime = now;
-
-  const dt = Math.min(3, dtMs / (1000/60));
-
-  if(energy > 0) update(dt);
+  const dt=Math.min(3,(now-state.lastTime)/(1000/60));
+  state.lastTime=now;
+  if(energy>0) update(dt);
   draw();
-
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-function restart(){
-  if(energy > 0) return;
-  energy = 100;
-  score = 0;
-  uiScore.textContent = score;
-  items.length = 0;
-  setFeedback("");
-}
-canvas.addEventListener("touchstart", restart, {passive:true});
-canvas.addEventListener("mousedown", restart);
+canvas.addEventListener("mousemove",e=>state.pointerX=e.clientX);
+canvas.addEventListener("touchmove",e=>state.pointerX=e.touches[0].clientX,{passive:true});
 </script>
 </body>
 </html>
