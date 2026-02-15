@@ -4,75 +4,63 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <title>Letter Race</title>
+
 <style>
-  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
-  canvas { display:block; }
+html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
+canvas { display:block; }
 
-  #ui{
-    position:absolute; top:12px; left:12px;
-    color:#fff; font-size:16px;
-    background:rgba(0,0,0,.35);
-    padding:10px 12px; border-radius:12px;
-    backdrop-filter: blur(4px);
-    max-width: min(520px, calc(100vw - 24px));
-  }
-  #ui .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-  .pill{
-    display:inline-flex; align-items:center; gap:8px;
-    padding:6px 10px; border-radius:999px;
-    background:rgba(0,0,0,.28);
-    white-space:nowrap;
-  }
-  .targetBox{
-    width:34px; height:34px; border-radius:10px;
-    display:inline-flex; align-items:center; justify-content:center;
-    background:rgba(255,255,255,.18);
-    border:2px solid rgba(255,255,255,.35);
-    font-weight:700;
-  }
+#ui{
+  position:absolute; top:12px; left:12px;
+  color:#fff; font-size:16px;
+  background:rgba(0,0,0,.35);
+  padding:10px 12px; border-radius:12px;
+  backdrop-filter: blur(4px);
+}
 
-  .controls{
-    margin-top:10px;
-    padding-top:10px;
-    border-top: 1px solid rgba(255,255,255,.18);
-    display:grid;
-    gap:8px;
-  }
-  .ctrl{
-    display:grid;
-    grid-template-columns: 140px 1fr 70px;
-    gap:10px;
-    align-items:center;
-  }
-  .ctrl label{ opacity:0.95; }
-  .ctrl input[type="range"]{ width:100%; }
-  .value{
-    text-align:right;
-    font-variant-numeric: tabular-nums;
-    opacity:0.95;
-  }
+.row{ display:flex; gap:12px; flex-wrap:wrap; }
+.pill{
+  background:rgba(0,0,0,.28);
+  padding:6px 10px;
+  border-radius:999px;
+}
+
+.controls{
+  margin-top:8px;
+  display:grid;
+  gap:6px;
+}
+
+.ctrl{
+  display:grid;
+  grid-template-columns:120px 1fr 60px;
+  gap:8px;
+  align-items:center;
+}
+
+.value{ text-align:right; font-variant-numeric: tabular-nums; }
 </style>
 </head>
+
 <body>
 
 <div id="ui">
   <div class="row">
-    <span class="pill">Energie: <span id="energy">100</span></span>
-    <span class="pill">Letter: <span class="targetBox" id="targetLetter">a</span></span>
-    <span class="pill">Tempo: <span id="tempo">1.00</span></span>
+    <span class="pill">Energie <span id="energy">100</span></span>
+    <span class="pill">Letter <span id="targetLetter">a</span></span>
+    <span class="pill">Tempo <span id="tempo">1.00</span></span>
   </div>
 
   <div class="controls">
     <div class="ctrl">
-      <label for="treeStart">Bomen start</label>
-      <input id="treeStart" type="range" min="0.05" max="2.00" step="0.01" value="0.22">
-      <div class="value"><span id="treeStartVal">0.22</span></div>
+      <label>Bomen start</label>
+      <input id="treeStart" type="range" min="0.05" max="2" step="0.01" value="0.22">
+      <div class="value" id="treeStartVal">0.22</div>
     </div>
 
     <div class="ctrl">
-      <label for="treeEnd">Bomen eind</label>
-      <input id="treeEnd" type="range" min="2.0" max="40.0" step="0.1" value="14.0">
-      <div class="value"><span id="treeEndVal">14.0</span></div>
+      <label>Bomen eind</label>
+      <input id="treeEnd" type="range" min="2" max="40" step="0.1" value="14">
+      <div class="value" id="treeEndVal">14.0</div>
     </div>
   </div>
 </div>
@@ -87,433 +75,228 @@ function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
 addEventListener("resize", resize);
 resize();
 
+/* UI */
 const uiEnergy = document.getElementById("energy");
-const uiTarget = document.getElementById("targetLetter");
 const uiTempo  = document.getElementById("tempo");
+const uiTarget = document.getElementById("targetLetter");
 
 const treeStartSlider = document.getElementById("treeStart");
 const treeEndSlider   = document.getElementById("treeEnd");
 const treeStartVal    = document.getElementById("treeStartVal");
 const treeEndVal      = document.getElementById("treeEndVal");
 
-function loadImg(src){ const img = new Image(); img.src = src; return img; }
-const carStraight = loadImg("car_straight.png");
-const carLeft = loadImg("car_left.png");
-const carRight = loadImg("car_right.png");
-const treeImg = loadImg("tree.png");
+/* helpers */
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function mod(n,m){ return ((n%m)+m)%m; }
 
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-function mod(n,m){ return ((n % m) + m) % m; }
-function lerp(a,b,t){ return a + (b-a)*t; }
+/* images */
+function img(src){ const i=new Image(); i.src=src; return i; }
+const carImg = img("car_straight.png");
+const treeImg = img("tree.png");
 
-let energy = 100;
-let roadScroll = 0;
-let tempoFactor = 1.0;
+/* state */
+let energy=100;
+let tempoFactor=1;
+let roadScroll=0;
 
-const letters = "aeioumkstprln".split("");
-let targetLetter = letters[Math.floor(Math.random()*letters.length)];
-uiTarget.textContent = targetLetter;
+const letters="aeioumkstprln".split("");
+let targetLetter=letters[Math.floor(Math.random()*letters.length)];
+uiTarget.textContent=targetLetter;
 
-let targetTimer = 0;
-const TARGET_SWITCH_SECONDS = 9;
-
-const state = { lane: 1, lastTime: performance.now() };
-
-const car = {
-  x: canvas.width/2,
-  y: canvas.height * 0.78,
-  tilt: 0,
-  steerDx: 0,
-  w: 150,
-  h: 90
+const car={
+ x:canvas.width/2,
+ y:canvas.height*0.78,
+ w:150,
+ h:90
 };
 
-const items = [];
-const MAX_ITEMS = 2;
-const SPAWN_FRAMES_BASE = 170;
-
-const SPEED_UP = 0.12;
-const SPEED_DOWN = 0.10;
-const SPEED_MIN = 0.70;
-const SPEED_MAX = 2.20;
-const RELAX_TO_ONE = 0.004;
-
-/* boom snelheid via sliders */
-let treeAccelStart = parseFloat(treeStartSlider.value);
-let treeAccelEnd   = parseFloat(treeEndSlider.value);
+/* tree tuning via sliders */
+let treeAccelStart=parseFloat(treeStartSlider.value);
+let treeAccelEnd=parseFloat(treeEndSlider.value);
 
 function syncTreeUI(){
-  treeAccelStart = parseFloat(treeStartSlider.value);
-  treeAccelEnd   = parseFloat(treeEndSlider.value);
-
-  treeStartVal.textContent = treeAccelStart.toFixed(2);
-  treeEndVal.textContent   = treeAccelEnd.toFixed(1);
+ treeAccelStart=parseFloat(treeStartSlider.value);
+ treeAccelEnd=parseFloat(treeEndSlider.value);
+ treeStartVal.textContent=treeAccelStart.toFixed(2);
+ treeEndVal.textContent=treeAccelEnd.toFixed(1);
 }
-treeStartSlider.addEventListener("input", syncTreeUI);
-treeEndSlider.addEventListener("input", syncTreeUI);
+treeStartSlider.oninput=syncTreeUI;
+treeEndSlider.oninput=syncTreeUI;
 syncTreeUI();
 
-/* weg geometrie */
+/* road geometry */
 function roadWidthAt(y){
-  const t = clamp(y / canvas.height, 0, 1);
-  return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
+ const t=clamp(y/canvas.height,0,1);
+ return canvas.width*0.3+(canvas.width*0.9-canvas.width*0.3)*(t**1.6);
 }
 function roadCenterXAt(y){
-  const t = clamp(y / canvas.height, 0, 1);
-  const slow = Math.sin(roadScroll / 720) * (canvas.width * 0.03);
-  return canvas.width / 2 + slow * (1 - t);
+ const t=clamp(y/canvas.height,0,1);
+ const bend=Math.sin(roadScroll/720)*(canvas.width*0.03);
+ return canvas.width/2 + bend*(1-t);
 }
 function roadEdgesAt(y){
-  const w = roadWidthAt(y);
-  const cx = roadCenterXAt(y);
-  return { left: cx - w/2, right: cx + w/2, cx, w };
-}
-function laneX(lane, y){
-  const e = roadEdgesAt(y);
-  const laneW = e.w / 3;
-  return e.left + laneW * (lane + 0.5);
+ const w=roadWidthAt(y);
+ const cx=roadCenterXAt(y);
+ return {left:cx-w/2,right:cx+w/2,cx,w};
 }
 
-/* bomen */
-const trees = [];
-const MAX_TREES = 4;
-const TREE_SPAWN_FRAMES_BASE = 240;
-let treeSpawnTimer = 0;
+/* trees */
+const trees=[];
+let treeSpawnTimer=0;
 
 function spawnTree(){
-  if(trees.length >= MAX_TREES) return;
-
-  const side = Math.random() < 0.5 ? "left" : "right";
-  const distanceFactor = 0.90 + Math.random() * 0.14;
-  const sizeSeed = 0.88 + Math.random() * 0.28;
-
-  trees.push({
-    side,
-    baseY: -440,
-    vBase: 2.2,
-    distanceFactor,
-    sizeSeed,
-    lastH: 260
-  });
+ trees.push({
+  side:Math.random()<0.5?"left":"right",
+  baseY:-420,
+  sizeSeed:0.9+Math.random()*0.25
+ });
 }
 
 function treeX(tr){
-  const e = roadEdgesAt(tr.baseY);
-  const t = clamp(tr.baseY / canvas.height, 0, 1);
-  const base = 44 + t * 175;
-  const margin = base * tr.distanceFactor;
-  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
+ const e=roadEdgesAt(tr.baseY);
+ const t=clamp(tr.baseY/canvas.height,0,1);
+ const margin=(44+t*180);
+ return tr.side==="left"?e.left-margin:e.right+margin;
 }
 
 function treeSize(tr){
-  const t = clamp(tr.baseY / canvas.height, 0, 1);
-  const p = t ** 1.02;
-  const w = (16 + p * 1120) * tr.sizeSeed;
-  const h = w * 1.10;
-  return { w, h };
+ const t=clamp(tr.baseY/canvas.height,0,1);
+ const p=t**1.05;
+ const w=(16+p*1100)*tr.sizeSeed;
+ const h=w*1.1;
+ return {w,h};
 }
 
 function updateTrees(dt){
-  treeSpawnTimer += dt;
-  const threshold = TREE_SPAWN_FRAMES_BASE / tempoFactor;
-  if(treeSpawnTimer > threshold){
-    treeSpawnTimer = 0;
-    spawnTree();
-  }
+ treeSpawnTimer+=dt;
+ if(treeSpawnTimer>240/tempoFactor){
+  treeSpawnTimer=0;
+  spawnTree();
+ }
 
-  for(let i = trees.length - 1; i >= 0; i--){
-    const tr = trees[i];
+ for(let i=trees.length-1;i>=0;i--){
+  const tr=trees[i];
+  const t=clamp(tr.baseY/canvas.height,0,1);
 
-    const t = clamp(tr.baseY / canvas.height, 0, 1);
+  const accel=lerp(treeAccelStart,treeAccelEnd,t**1.8);
+  let dy=accel*tempoFactor*dt*2.5;
 
-    // dit is nu exact instelbaar via schuifjes
-    // boven start traag, onder eind snel, curve bepaalt hoe snel hij oploopt
-    const curve = 1.85; // hoger is sneller oplopende versnelling
-    const accel = lerp(treeAccelStart, treeAccelEnd, t ** curve);
+  dy=Math.min(dy,120*dt*tempoFactor);
+  tr.baseY+=dy;
 
-    let dy = (tr.vBase * accel * tempoFactor) * dt;
-
-    // cap tegen frame spikes, maar hoog genoeg voor echte versnelling
-    const maxStep = 130 * dt * tempoFactor;
-    dy = Math.min(dy, maxStep);
-
-    tr.baseY += dy;
-
-    tr.lastH = treeSize(tr).h;
-
-    // opruimen voordat je een laatste tik ziet
-    if(tr.baseY - tr.lastH > canvas.height + 80) trees.splice(i, 1);
-  }
+  const h=treeSize(tr).h;
+  if(tr.baseY-h>canvas.height+80) trees.splice(i,1);
+ }
 }
 
 function drawTrees(){
-  for(const tr of trees){
-    const { w, h } = treeSize(tr);
-    const x = treeX(tr);
+ for(const tr of trees){
+  const {w,h}=treeSize(tr);
+  const x=treeX(tr);
+  const y=tr.baseY-h;
 
-    const topY = tr.baseY - h;
-    const shadowY = tr.baseY + h * 0.06;
-
-    ctx.fillStyle = "rgba(0,0,0,0.22)";
-    ctx.beginPath();
-    ctx.ellipse(x, shadowY, w * 0.34, h * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    if(treeImg.complete && treeImg.naturalWidth){
-      ctx.drawImage(treeImg, x - w/2, topY, w, h);
-    }
-  }
-}
-
-/* achtergrond */
-function drawGrass(){
-  ctx.fillStyle = "#3aa64b";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  for(let i=0; i<12; i++){
-    const x = (i * canvas.width / 12) + (Math.sin(roadScroll/210 + i) * 18);
-    const y = (i * 140 + roadScroll * 1.25) % (canvas.height + 220) - 110;
-    ctx.fillStyle = "rgba(0,0,0,0.05)";
-    ctx.beginPath();
-    ctx.ellipse(x, y, 120, 60, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-/* weg met stabiele strepen via wereldafstand en projectie */
-function drawRoad(){
-  const pts = [];
-  for(let y=0; y<=canvas.height+28; y+=28){
-    const e = roadEdgesAt(y);
-    pts.push({ y, left: e.left, right: e.right, cx: e.cx, w: e.w });
-  }
-
+  ctx.fillStyle="rgba(0,0,0,0.22)";
   ctx.beginPath();
-  ctx.moveTo(pts[0].left, pts[0].y);
-  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left, pts[i].y);
-  for(let i=pts.length-1; i>=0; i--) ctx.lineTo(pts[i].right, pts[i].y);
-  ctx.closePath();
-  ctx.fillStyle = "#505050";
+  ctx.ellipse(x,tr.baseY+h*0.05,w*0.34,h*0.12,0,0,Math.PI*2);
   ctx.fill();
 
-  for(let i=0; i<pts.length-1; i++){
-    const p1 = pts[i];
-    const p2 = pts[i+1];
-    const t = clamp(p1.y / canvas.height, 0, 1);
-
-    const bandW = 3 + t * 22;
-    const offset = bandW * 0.75;
-
-    ctx.strokeStyle = "rgba(255,255,255,0.20)";
-    ctx.lineWidth = bandW;
-    ctx.lineCap = "round";
-
-    ctx.beginPath();
-    ctx.moveTo(p1.left - offset, p1.y);
-    ctx.lineTo(p2.left - offset, p2.y);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(p1.right + offset, p1.y);
-    ctx.lineTo(p2.right + offset, p2.y);
-    ctx.stroke();
-  }
-
-  ctx.strokeStyle = "rgba(255,255,255,0.60)";
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-
-  ctx.beginPath();
-  ctx.moveTo(pts[0].left + 3, pts[0].y);
-  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left + 3, pts[i].y);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(pts[0].right - 3, pts[0].y);
-  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 3, pts[i].y);
-  ctx.stroke();
-
-  const H = canvas.height;
-  const projScale = 0.0042;
-
-  function yFromS(s){
-    return H / (1 + s * projScale);
-  }
-
-  const periodS = 260;
-  const dashS   = 105;
-  const sOffset = (periodS - (roadScroll % periodS)) % periodS;
-
-  for(let s = sOffset; ; s += periodS){
-    const y1 = yFromS(s);
-    if(y1 < -30) break;
-
-    const y2 = yFromS(s + dashS);
-    const cx = roadCenterXAt(y1);
-
-    const t = clamp(y1 / H, 0, 1);
-    const dashW = lerp(8, 22, t);
-
-    ctx.strokeStyle = "rgba(255,245,190,0.75)";
-    ctx.lineWidth = dashW;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(cx, y1);
-    ctx.lineTo(cx, y2);
-    ctx.stroke();
-  }
+  if(treeImg.complete) ctx.drawImage(treeImg,x-w/2,y,w,h);
+ }
 }
 
-/* auto en letters */
-function chooseCarSprite(){
-  if(car.steerDx < -18) return carLeft;
-  if(car.steerDx > 18) return carRight;
-  return carStraight;
+/* road drawing */
+function drawRoad(){
+ const pts=[];
+ for(let y=0;y<=canvas.height+30;y+=30){
+  const e=roadEdgesAt(y);
+  pts.push({y,left:e.left,right:e.right,cx:e.cx});
+ }
+
+ ctx.beginPath();
+ ctx.moveTo(pts[0].left,pts[0].y);
+ for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].left,pts[i].y);
+ for(let i=pts.length-1;i>=0;i--) ctx.lineTo(pts[i].right,pts[i].y);
+ ctx.closePath();
+ ctx.fillStyle="#505050";
+ ctx.fill();
+
+ ctx.strokeStyle="rgba(255,255,255,0.6)";
+ ctx.lineWidth=4;
+
+ ctx.beginPath();
+ ctx.moveTo(pts[0].left,pts[0].y);
+ for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].left,pts[i].y);
+ ctx.stroke();
+
+ ctx.beginPath();
+ ctx.moveTo(pts[0].right,pts[0].y);
+ for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].right,pts[i].y);
+ ctx.stroke();
+
+ /* stable dashed center line using distance projection */
+ const H=canvas.height;
+ const scale=0.0042;
+
+ function yFromS(s){ return H/(1+s*scale); }
+
+ const period=260;
+ const dash=105;
+ const offset=(period-(roadScroll%period))%period;
+
+ let guard=0;
+
+ for(let s=offset;guard<200;s+=period,guard++){
+  const y1=yFromS(s);
+  if(y1<=0) break;
+  const y2=yFromS(s+dash);
+
+  const cx=roadCenterXAt(y1);
+  const t=clamp(y1/H,0,1);
+  const w=lerp(8,22,t);
+
+  ctx.strokeStyle="rgba(255,245,190,0.8)";
+  ctx.lineWidth=w;
+  ctx.beginPath();
+  ctx.moveTo(cx,y1);
+  ctx.lineTo(cx,y2);
+  ctx.stroke();
+ }
+}
+
+/* draw */
+function draw(){
+ ctx.fillStyle="#3aa64b";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ drawRoad();
+ drawCar();
+ drawTrees(); /* bomen boven auto */
 }
 
 function drawCar(){
-  const base = Math.min(canvas.width, canvas.height);
-  const w = Math.max(176, base * 0.275);
-  const h = w * 0.62;
-
-  car.w = w;
-  car.h = h;
-
-  const img = chooseCarSprite();
-
-  ctx.save();
-  ctx.translate(car.x, car.y);
-  ctx.rotate(car.tilt * 0.40);
-
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.beginPath();
-  ctx.ellipse(0, h * 0.36, w * 0.34, h * 0.22, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  if(img.complete && img.naturalWidth) ctx.drawImage(img, -w/2, -h/2, w, h);
-  ctx.restore();
+ if(carImg.complete)
+ ctx.drawImage(carImg,car.x-80,car.y-45,160,90);
 }
 
-function drawItem(it){
-  const t = clamp(it.y / canvas.height, 0, 1);
-  const size = 26 + t * 125;
-  const fontSize = Math.floor(14 + t * 58);
-
-  ctx.fillStyle = it.isTarget ? "rgba(170,225,255,0.95)" : "rgba(255,220,120,0.95)";
-  ctx.fillRect(it.x - size/2, it.y - size/2, size, size);
-
-  ctx.fillStyle = "#111";
-  ctx.font = `700 ${fontSize}px Arial`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(it.letter, it.x, it.y);
-}
-
-function spawnLetter(){
-  if(items.length >= MAX_ITEMS) return;
-
-  const lane = Math.floor(Math.random() * 3);
-  const isTarget = Math.random() < 0.33;
-  const letter = isTarget ? targetLetter : letters[Math.floor(Math.random() * letters.length)];
-
-  items.push({ lane, y: -70, letter, isTarget, vy: 8.2 });
-}
-
-let spawnTimer = 0;
-
-function updateTargetLetter(dt){
-  targetTimer += dt / 60;
-  if(targetTimer >= TARGET_SWITCH_SECONDS){
-    targetTimer = 0;
-    let next = targetLetter;
-    while(next === targetLetter) next = letters[Math.floor(Math.random() * letters.length)];
-    targetLetter = next;
-    uiTarget.textContent = targetLetter;
-  }
-}
-
-function updateTempoRelax(dt){
-  const diff = 1.0 - tempoFactor;
-  tempoFactor += diff * (RELAX_TO_ONE * dt);
-  tempoFactor = clamp(tempoFactor, SPEED_MIN, SPEED_MAX);
-}
-
-function update(dt){
-  energy = Math.max(0, energy - 0.018 * dt);
-  uiEnergy.textContent = Math.floor(energy);
-
-  updateTargetLetter(dt);
-  updateTempoRelax(dt);
-
-  roadScroll += (9.2 * tempoFactor) * dt;
-  uiTempo.textContent = tempoFactor.toFixed(2);
-
-  updateTrees(dt);
-
-  const targetX = laneX(state.lane, car.y);
-  const dx = targetX - car.x;
-  car.steerDx = dx;
-  car.x += dx * (0.085 * dt);
-  car.tilt += (clamp(dx / (canvas.width * 0.75), -0.28, 0.28) - car.tilt) * (0.09 * dt);
-
-  spawnTimer += dt;
-  const spawnThreshold = SPAWN_FRAMES_BASE / tempoFactor;
-  if(spawnTimer > spawnThreshold){
-    spawnTimer = 0;
-    spawnLetter();
-  }
-
-  for(let i = items.length - 1; i >= 0; i--){
-    const it = items[i];
-    it.y += (it.vy * tempoFactor) * dt;
-    it.x = laneX(it.lane, it.y);
-
-    const hit = Math.abs(it.x - car.x) < car.w * 0.36 && Math.abs(it.y - car.y) < car.h * 0.36;
-
-    if(hit){
-      if(it.isTarget){
-        tempoFactor = clamp(tempoFactor + SPEED_UP, SPEED_MIN, SPEED_MAX);
-        targetTimer = TARGET_SWITCH_SECONDS;
-      } else {
-        tempoFactor = clamp(tempoFactor - SPEED_DOWN, SPEED_MIN, SPEED_MAX);
-      }
-
-      energy = Math.min(140, energy + 10);
-      items.splice(i, 1);
-      continue;
-    }
-
-    if(it.y > canvas.height + 160) items.splice(i, 1);
-  }
-}
-
-function draw(){
-  drawGrass();
-  drawRoad();
-
-  // items eerst, auto daarna, bomen als laatste zodat ze boven de auto liggen
-  for(const it of items) drawItem(it);
-  drawCar();
-  drawTrees();
-}
-
+/* loop */
+let last=performance.now();
 function loop(now){
-  const dt = Math.min(3, (now - state.lastTime) / (1000/60));
-  state.lastTime = now;
+ const dt=Math.min(3,(now-last)/(1000/60));
+ last=now;
 
-  if(energy > 0) update(dt);
-  draw();
+ energy=Math.max(0,energy-0.02*dt);
+ uiEnergy.textContent=Math.floor(energy);
 
-  requestAnimationFrame(loop);
+ roadScroll+=9*tempoFactor*dt;
+ uiTempo.textContent=tempoFactor.toFixed(2);
+
+ updateTrees(dt);
+ draw();
+
+ requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-
-canvas.addEventListener("pointerdown", (e)=>{
-  const x = e.clientX;
-  if(x < canvas.width / 3) state.lane = 0;
-  else if(x < canvas.width * 2 / 3) state.lane = 1;
-  else state.lane = 2;
-});
 </script>
 </body>
 </html>
