@@ -20,10 +20,11 @@
     background:rgba(0,0,0,.6);
     color:#fff; padding:14px 18px;
     border-radius:14px;
-    display:none;
     backdrop-filter: blur(6px);
+    display:none;
   }
   #devMenu input{ width:240px; }
+  #speedValue{ margin-left:10px; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -33,7 +34,9 @@
 </div>
 
 <div id="devMenu">
-  Tempo <input type="range" id="speedSlider" min="0.6" max="2.2" step="0.05" value="1">
+  Tempo
+  <input type="range" id="speedSlider" min="0.6" max="2.2" step="0.05" value="1">
+  <span id="speedValue">1.00</span>
 </div>
 
 <canvas id="game"></canvas>
@@ -48,17 +51,21 @@ addEventListener("resize",resize); resize();
 const uiEnergy=document.getElementById("energy");
 const devMenu=document.getElementById("devMenu");
 const speedSlider=document.getElementById("speedSlider");
+const speedValue=document.getElementById("speedValue");
 
 let tempoFactor=1;
-speedSlider.oninput=()=> tempoFactor=parseFloat(speedSlider.value);
+speedSlider.oninput=()=>{
+  tempoFactor=parseFloat(speedSlider.value);
+  speedValue.textContent=tempoFactor.toFixed(2);
+};
 
 document.addEventListener("keydown",e=>{
-  if(e.key==="t"||e.key==="T") devMenu.style.display=devMenu.style.display==="none"?"block":"none";
+  if(e.key==="t"||e.key==="T")
+    devMenu.style.display=devMenu.style.display==="none"?"block":"none";
 });
 canvas.addEventListener("touchstart",e=>{
-  if(e.touches.length===3){
+  if(e.touches.length===3)
     devMenu.style.display=devMenu.style.display==="none"?"block":"none";
-  }
 },{passive:true});
 
 function loadImg(src){ const i=new Image(); i.src=src; return i; }
@@ -67,6 +74,7 @@ const carLeft=loadImg("car_left.png");
 const carRight=loadImg("car_right.png");
 
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function mod(n,m){ return ((n%m)+m)%m; }
 
 let energy=100, roadScroll=0;
 
@@ -78,6 +86,7 @@ const car={x:canvas.width/2,y:canvas.height*.78,tilt:0,steerDx:0,w:140,h:90};
 
 const items=[];
 
+/* weg geometrie */
 function roadWidthAt(y){
   const t=clamp(y/canvas.height,0,1);
   return canvas.width*.3 + (canvas.width*.9-canvas.width*.3)*(t**1.6);
@@ -107,6 +116,7 @@ function drawRoad(){
   ctx.closePath();
   ctx.fillStyle="#505050"; ctx.fill();
 
+  // zijband
   for(let i=0;i<pts.length-1;i++){
     const p=pts[i],t=clamp(p.y/canvas.height,0,1);
     const w=3+t*18;
@@ -114,6 +124,20 @@ function drawRoad(){
     ctx.lineWidth=w;
     ctx.beginPath(); ctx.moveTo(p.left-w*.6,p.y); ctx.lineTo(pts[i+1].left-w*.6,pts[i+1].y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(p.right+w*.6,p.y); ctx.lineTo(pts[i+1].right+w*.6,pts[i+1].y); ctx.stroke();
+  }
+
+  // middenstrepen zelfde tempo als letters
+  const dashScroll=roadScroll*tempoFactor % 260;
+  for(const p of pts){
+    const t=clamp(p.y/canvas.height,0,1);
+    const phase=mod(p.y-dashScroll,260);
+    if(phase>90) continue;
+    ctx.strokeStyle="rgba(255,245,190,0.75)";
+    ctx.lineWidth=12+t*10;
+    ctx.beginPath();
+    ctx.moveTo(p.cx,p.y);
+    ctx.lineTo(p.cx,p.y+28+t*48);
+    ctx.stroke();
   }
 }
 
@@ -135,15 +159,15 @@ function drawCar(){
   ctx.restore();
 }
 
+/* letters perspectief */
 function drawItem(it){
   const t=clamp(it.y/canvas.height,0,1);
-  const size=36 + t*42; // perspectief groei
-
+  const size=30 + t*90; // sterk perspectief
   ctx.fillStyle="rgba(255,220,120,.95)";
   ctx.fillRect(it.x-size/2,it.y-size/2,size,size);
 
   ctx.fillStyle="#111";
-  ctx.font=`700 ${Math.floor(18 + t*24)}px Arial`;
+  ctx.font=`700 ${Math.floor(16 + t*44)}px Arial`;
   ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.fillText(it.letter,it.x,it.y);
 }
@@ -152,7 +176,7 @@ function spawnLetter(){
   if(items.length>2) return;
   const e=roadEdgesAt(canvas.height*.3);
   const x=e.left+120+Math.random()*(e.right-e.left-240);
-  items.push({x,y:-60,letter:letters[Math.floor(Math.random()*letters.length)],vy:6.5});
+  items.push({x,y:-60,letter:letters[Math.floor(Math.random()*letters.length)],vy:7.5});
 }
 
 let spawnTimer=0;
