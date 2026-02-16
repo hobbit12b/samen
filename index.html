@@ -126,6 +126,22 @@
   .dot.filled{
     background: rgba(0,0,0,0.55);
   }
+  /* Trofee animatie */
+  #trophy{
+    position:fixed;
+    left:0;
+    top:0;
+    display:none;
+    z-index:40;
+    width:min(560px, 78vw);
+    height:auto;
+    pointer-events:none;
+    opacity:0;
+    filter: drop-shadow(0 18px 30px rgba(0,0,0,0.38));
+    transform: translate(-50%, -50%) scale(1);
+    will-change: transform, opacity;
+  }
+
 
   /* Verborgen menu */
   #settingsOverlay{
@@ -216,6 +232,8 @@
   <img id="coachImg" src="coureur1.png" alt="" />
 </div>
 
+<img id="trophy" src="coureur_beker.png" alt="" />
+
 <div id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Instellingen">
   <div id="settingsPanel">
     <h2>Instellingen</h2>
@@ -264,6 +282,7 @@ const uiCoachLetter = document.getElementById("coachLetter");
 const uiProgress = document.getElementById("progress");
 const uiSpeech = document.getElementById("speech");
 const uiTagNew = document.getElementById("tagNew");
+const trophyEl = document.getElementById("trophy");
 
 const settingsOverlay = document.getElementById("settingsOverlay");
 const lettersInput = document.getElementById("lettersInput");
@@ -379,6 +398,77 @@ function setCoachMood(mood, frames = 50){
   else if(mood === "sad") coachImgEl.src = "coureur_sip.png";
   else coachImgEl.src = "coureur1.png";
 }
+
+
+/* ===== Trofee animatie: groot midden, uitzoom naar coureur, dan nieuwe letter ===== */
+let trophyAnimating = false;
+
+function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
+
+function setTrophyPose(x, y, s, a){
+  trophyEl.style.opacity = String(a);
+  trophyEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${s})`;
+}
+
+function playTrophyAnimation(onDone){
+  trophyAnimating = true;
+  trophyEl.style.display = "block";
+
+  const startX = innerWidth * 0.5;
+  const startY = innerHeight * 0.46;
+
+  const r = coachImgEl.getBoundingClientRect();
+  const endX = r.left + r.width * 0.55;
+  const endY = r.top + r.height * 0.50;
+
+  const phase1 = 380;
+  const phase2 = 980;
+  const startTime = performance.now();
+
+  setTrophyPose(startX, startY, 1.35, 0.0);
+
+  function tick(now){
+    const elapsed = now - startTime;
+
+    if(elapsed < phase1){
+      const t = easeOutCubic(elapsed / phase1);
+      const s = lerp(1.35, 1.05, t);
+      const a = lerp(0.0, 1.0, t);
+      setTrophyPose(startX, startY, s, a);
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    const e2 = elapsed - phase1;
+    if(e2 < phase2){
+      const t = easeInOutQuad(e2 / phase2);
+      const x = lerp(startX, endX, t);
+      const y = lerp(startY, endY, t);
+      const s = lerp(1.05, 0.34, t);
+      const a = (t < 0.86) ? lerp(1.0, 0.92, t) : lerp(0.92, 0.0, (t - 0.86) / 0.14);
+      setTrophyPose(x, y, s, a);
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    trophyEl.style.display = "none";
+    trophyEl.style.opacity = "0";
+    trophyAnimating = false;
+    if(typeof onDone === "function") onDone();
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function onLevelCompleted(){
+  setCoachMood("happy", 90);
+  playTrophyAnimation(()=>{
+    setCoachMood("neutral", 0);
+    nextTargetLetter();
+  });
+}
+
 
 /* ===== Verborgen menu openen: 6 snelle tikken op de coureur ===== */
 let tapCount = 0;
@@ -826,8 +916,8 @@ function update(dt){
         remainingHits = Math.max(0, remainingHits - 1);
         updateProgressDots();
 
-        if(remainingHits <= 0){
-          nextTargetLetter();
+        if(remainingHits <= 0 && !trophyAnimating){
+          onLevelCompleted();
         }
       } else {
         setCoachMood("sad", 65);
@@ -866,7 +956,7 @@ function loop(now){
   const dt = Math.min(3, (now - state.lastTime) / (1000/60));
   state.lastTime = now;
 
-  if(energy > 0 && settingsOverlay.style.display !== "flex") update(dt);
+  if(energy > 0 && settingsOverlay.style.display !== "flex" && !trophyAnimating) update(dt);
   draw();
 
   requestAnimationFrame(loop);
@@ -875,6 +965,7 @@ function loop(now){
 /* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
   if(settingsOverlay.style.display === "flex") return;
+  if(trophyAnimating) return;
 
   const x = e.clientX;
   if(x < canvas.width / 3) state.lane = 0;
