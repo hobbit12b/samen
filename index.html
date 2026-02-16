@@ -141,6 +141,32 @@
     transform: translate(-50%, -50%) scale(1);
     will-change: transform, opacity;
   }
+  /* Confetti */
+  #confetti{
+    position:fixed;
+    inset:0;
+    z-index:35;
+    pointer-events:none;
+    display:none;
+    overflow:hidden;
+  }
+  .confettiPiece{
+    position:absolute;
+    top:-12vh;
+    width:10px;
+    height:16px;
+    border-radius:4px;
+    opacity:0.95;
+    transform: rotate(0deg);
+    animation: confettiFall 1150ms ease-in forwards;
+    will-change: transform, top, opacity;
+  }
+  @keyframes confettiFall{
+    0%   { transform: translateY(0) rotate(0deg); opacity:0; }
+    10%  { opacity:1; }
+    100% { transform: translateY(120vh) rotate(520deg); opacity:0; }
+  }
+
 
 
   /* Verborgen menu */
@@ -232,6 +258,7 @@
   <img id="coachImg" src="coureur1.png" alt="" />
 </div>
 
+<div id="confetti"></div>
 <img id="trophy" src="coureur_beker.png" alt="" />
 
 <div id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Instellingen">
@@ -396,8 +423,43 @@ function setCoachMood(mood, frames = 50){
 
   if(mood === "happy") coachImgEl.src = "coureur_blij.png";
   else if(mood === "sad") coachImgEl.src = "coureur_sip.png";
+  else if(mood === "trophy") coachImgEl.src = "coureur_beker.png";
   else coachImgEl.src = "coureur1.png";
 }
+
+
+/* ===== Confetti ===== */
+function spawnConfetti(){
+  const confettiEl = document.getElementById("confetti");
+  confettiEl.innerHTML = "";
+  confettiEl.style.display = "block";
+
+  const n = 34;
+  for(let i=0; i<n; i++){
+    const p = document.createElement("div");
+    p.className = "confettiPiece";
+
+    const left = Math.random() * 100;
+    const delay = Math.random() * 220;
+    const w = 8 + Math.random() * 10;
+    const h = 12 + Math.random() * 14;
+
+    const hue = Math.floor(Math.random() * 360);
+    p.style.left = left + "vw";
+    p.style.width = w + "px";
+    p.style.height = h + "px";
+    p.style.background = `hsl(${hue} 90% 60%)`;
+    p.style.animationDelay = delay + "ms";
+
+    confettiEl.appendChild(p);
+  }
+
+  setTimeout(()=>{
+    confettiEl.style.display = "none";
+    confettiEl.innerHTML = "";
+  }, 1250);
+}
+
 
 
 /* ===== Trofee animatie: groot midden, uitzoom naar coureur, dan nieuwe letter ===== */
@@ -406,9 +468,20 @@ let trophyAnimating = false;
 function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
 
-function setTrophyPose(x, y, s, a){
+
+function waitForImage(el){
+  return new Promise((resolve)=>{
+    if(el && el.complete && el.naturalWidth) return resolve();
+    const done = ()=> resolve();
+    el.addEventListener("load", done, { once:true });
+    el.addEventListener("error", done, { once:true });
+  });
+}
+
+function setTrophyPose(x, y, s, a, glow=0){
   trophyEl.style.opacity = String(a);
   trophyEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${s})`;
+  trophyEl.style.filter = `drop-shadow(0 18px 30px rgba(0,0,0,0.42)) drop-shadow(0 0 ${glow}px rgba(255,220,120,0.85))`;
 }
 
 function playTrophyAnimation(onDone){
@@ -422,52 +495,69 @@ function playTrophyAnimation(onDone){
   const endX = r.left + r.width * 0.55;
   const endY = r.top + r.height * 0.50;
 
-  const phase1 = 380;
-  const phase2 = 980;
+  const phase0 = 60;   /* fade in */
+  const phase1 = 520;  /* feest bounce */
+  const phase2 = 980;  /* uitzoomen naar hoek */
   const startTime = performance.now();
 
-  setTrophyPose(startX, startY, 1.35, 0.0);
+  setTrophyPose(startX, startY, 1.60, 0.0, 0);
 
-  function tick(now){
-    const elapsed = now - startTime;
+  waitForImage(trophyEl).then(()=>{
 
-    if(elapsed < phase1){
-      const t = easeOutCubic(elapsed / phase1);
-      const s = lerp(1.35, 1.05, t);
-      const a = lerp(0.0, 1.0, t);
-      setTrophyPose(startX, startY, s, a);
-      requestAnimationFrame(tick);
-      return;
+    function tick(now){
+      const elapsed = now - startTime;
+
+      if(elapsed < phase0){
+        const t = elapsed / phase0;
+        setTrophyPose(startX, startY, lerp(1.60, 1.42, t), lerp(0.0, 1.0, t), lerp(0, 12, t));
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      if(elapsed < phase0 + phase1){
+        const t = easeOutCubic((elapsed - phase0) / phase1);
+        const bob = Math.sin((elapsed - phase0) / 85) * 7;
+        const s = lerp(1.42, 1.08, t);
+        const glow = lerp(12, 26, t);
+        setTrophyPose(startX, startY + bob, s, 1.0, glow);
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      const e2 = elapsed - phase0 - phase1;
+      if(e2 < phase2){
+        const t = easeInOutQuad(e2 / phase2);
+        const x = lerp(startX, endX, t);
+        const y = lerp(startY, endY, t);
+        const s = lerp(1.08, 0.32, t);
+        const glow = lerp(26, 8, t);
+        const a = (t < 0.88) ? 1.0 : lerp(1.0, 0.0, (t - 0.88) / 0.12);
+        setTrophyPose(x, y, s, a, glow);
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      trophyEl.style.display = "none";
+      trophyEl.style.opacity = "0";
+      trophyAnimating = false;
+      if(typeof onDone === "function") onDone();
     }
 
-    const e2 = elapsed - phase1;
-    if(e2 < phase2){
-      const t = easeInOutQuad(e2 / phase2);
-      const x = lerp(startX, endX, t);
-      const y = lerp(startY, endY, t);
-      const s = lerp(1.05, 0.34, t);
-      const a = (t < 0.86) ? lerp(1.0, 0.92, t) : lerp(0.92, 0.0, (t - 0.86) / 0.14);
-      setTrophyPose(x, y, s, a);
-      requestAnimationFrame(tick);
-      return;
-    }
-
-    trophyEl.style.display = "none";
-    trophyEl.style.opacity = "0";
-    trophyAnimating = false;
-    if(typeof onDone === "function") onDone();
-  }
-
-  requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
+  });
 }
 
+
+
 function onLevelCompleted(){
-  setCoachMood("happy", 90);
+  spawnConfetti();
+  setCoachMood("trophy", 120);
   playTrophyAnimation(()=>{
     setCoachMood("neutral", 0);
     nextTargetLetter();
   });
 }
+
 
 
 /* ===== Verborgen menu openen: 6 snelle tikken op de coureur ===== */
@@ -880,7 +970,8 @@ function update(dt){
   if(coachMoodTimer > 0){
     coachMoodTimer -= dt;
     if(coachMoodTimer <= 0){
-      setCoachMood("neutral", 0);
+      /* trophy mood blijft even staan tot animatie klaar is */
+      if(!trophyAnimating) setCoachMood("neutral", 0);
     }
   }
 
