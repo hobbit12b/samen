@@ -194,10 +194,12 @@
     z-index:50;
     background: rgba(0,0,0,0.55);
     backdrop-filter: blur(6px);
+    touch-action: manipulation;
   }
   #settingsPanel{
     width:min(540px, calc(100vw - 24px));
     border-radius:18px;
+    touch-action: manipulation;
     background: rgba(255,255,255,0.96);
     box-shadow:0 18px 40px rgba(0,0,0,0.35);
     padding:16px 16px 14px 16px;
@@ -1044,10 +1046,13 @@ function buildLettersGrid(){
   if(!lettersGrid) return;
 
   lettersGrid.innerHTML = "";
+  lettersGrid.style.touchAction = "manipulation";
 
   for(const ch of DEFAULT_POOL){
-    const lab = document.createElement("label");
+    const lab = document.createElement("div");
     lab.className = "letterChip";
+    lab.setAttribute("role", "checkbox");
+    lab.setAttribute("aria-label", "letter " + ch);
 
     const cb = document.createElement("input");
     cb.type = "checkbox";
@@ -1060,15 +1065,21 @@ function buildLettersGrid(){
     const sync = ()=>{
       lab.classList.toggle("on", cb.checked);
       lab.classList.toggle("off", !cb.checked);
+      lab.setAttribute("aria-checked", cb.checked ? "true" : "false");
     };
+
+    const toggle = (e)=>{
+      // op iPad en Samsung is pointerdown betrouwbaarder dan click
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      cb.checked = !cb.checked;
+      sync();
+    };
+
+    // houd sync ook goed als iemand per ongeluk het input element triggert
     cb.addEventListener("change", sync);
 
-    lab.addEventListener("click", (e)=>{
-      if(e.target !== cb){
-        cb.checked = !cb.checked;
-        cb.dispatchEvent(new Event("change"));
-      }
-    });
+    lab.addEventListener("pointerdown", toggle, { passive:false });
+    lab.addEventListener("touchstart", toggle, { passive:false });
 
     lab.appendChild(cb);
     lab.appendChild(span);
@@ -1706,7 +1717,7 @@ function chooseCarSprite(){
 
 function drawCar(){
   const base = Math.min(canvas.width, canvas.height);
-  const w = Math.max(176, base * 0.275) * car.scale;
+  const w = Math.max(176, base * 0.300) * car.scale;
   const h = w * 0.62;
 
   car.w = w;
