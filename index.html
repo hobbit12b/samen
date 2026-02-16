@@ -556,6 +556,52 @@ const hitsInput = document.getElementById("hitsInput");
 const btnSave = document.getElementById("saveSettings");
 const btnClose = document.getElementById("closeSettings");
 
+
+/* ===== Docent menu: open en sluit =====
+   Dit ontbrak in v23, daardoor gebeurde er niets bij triple tap of long press.
+*/
+function openSettings(){
+  if(!settingsOverlay) return;
+
+  // vul UI met huidige waarden
+  if(hitsInput) hitsInput.value = String(requiredHits || 5);
+  if(typeof buildLettersGrid === "function") buildLettersGrid();
+
+  if(soundToggle) soundToggle.checked = !!soundOn;
+  if(typeof setSoundStatus === "function"){
+    setSoundStatus(soundOn ? "Stemmen staan aan" : "Stemmen staan uit");
+  }
+  if(speechModeEl) speechModeEl.value = speechMode;
+
+  settingsOverlay.style.display = "flex";
+  if(typeof toast === "function") toast("Docent menu");
+}
+
+function closeSettings(){
+  if(!settingsOverlay) return;
+  settingsOverlay.style.display = "none";
+}
+
+if(settingsOverlay){
+  // klik buiten het paneel sluit
+  settingsOverlay.addEventListener("pointerdown", (e)=>{
+    if(e.target === settingsOverlay) closeSettings();
+  });
+}
+
+// laptop: ESC sluit, Ctrl plus Alt plus S opent
+addEventListener("keydown", (e)=>{
+  const k = (e.key || "").toLowerCase();
+  if(k === "escape" && settingsOverlay && settingsOverlay.style.display === "flex"){
+    e.preventDefault();
+    closeSettings();
+  }
+  if((e.ctrlKey || e.metaKey) && e.altKey && k === "s"){
+    e.preventDefault();
+    openSettings();
+  }
+});
+
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a,b,t){ return a + (b-a)*t; }
 
