@@ -11,62 +11,27 @@
 
   #ui{
     position:absolute; top:12px; left:12px;
-    color:#fff;
+    color:#fff; font-size:14px;
     background:rgba(0,0,0,.35);
-    padding:12px 14px;
-    border-radius:14px;
+    padding:10px 12px; border-radius:12px;
     backdrop-filter: blur(4px);
-    max-width: min(620px, calc(100vw - 24px));
+    max-width: min(560px, calc(100vw - 24px));
   }
 
-  .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .pill{
     display:inline-flex; align-items:center; gap:8px;
-    padding:7px 12px; border-radius:999px;
+    padding:6px 10px; border-radius:999px;
     background:rgba(0,0,0,.28);
     white-space:nowrap;
-    font-size:16px;
   }
   .targetBox{
-    width:38px; height:38px; border-radius:12px;
+    width:34px; height:34px; border-radius:10px;
     display:inline-flex; align-items:center; justify-content:center;
     background:rgba(255,255,255,.18);
     border:2px solid rgba(255,255,255,.35);
-    font-weight:800;
-    font-size:20px;
+    font-weight:700;
     text-transform:lowercase;
-  }
-
-  .controls{
-    margin-top:10px;
-    padding-top:10px;
-    border-top: 1px solid rgba(255,255,255,.18);
-    display:grid;
-    gap:10px;
-  }
-
-  .ctrl{
-    display:grid;
-    grid-template-columns: 140px 1fr 70px;
-    gap:12px;
-    align-items:center;
-  }
-
-  .ctrl label{
-    font-size:16px;
-    opacity:0.95;
-  }
-
-  .ctrl input[type="range"]{
-    width:100%;
-    height:34px;
-  }
-
-  .value{
-    text-align:right;
-    font-variant-numeric: tabular-nums;
-    font-size:16px;
-    opacity:0.95;
   }
 </style>
 </head>
@@ -75,23 +40,9 @@
 
 <div id="ui">
   <div class="row">
-    <span class="pill">Energie: <span id="energy">100</span></span>
-    <span class="pill">Letter: <span class="targetBox" id="targetLetter">a</span></span>
-    <span class="pill">Tempo letters: <span id="tempoLetters">1.20</span></span>
-  </div>
-
-  <div class="controls">
-    <div class="ctrl">
-      <label for="lettersStart">Letters start</label>
-      <input id="lettersStart" type="range" min="1.20" max="3.00" step="0.01" value="1.20">
-      <div class="value"><span id="lettersStartVal">1.20</span></div>
-    </div>
-
-    <div class="ctrl">
-      <label for="lettersFast">Letters snel</label>
-      <input id="lettersFast" type="range" min="1.20" max="3.00" step="0.01" value="3.00">
-      <div class="value"><span id="lettersFastVal">3.00</span></div>
-    </div>
+    <span class="pill">Energie <span id="energy">100</span></span>
+    <span class="pill">Letter <span class="targetBox" id="targetLetter">a</span></span>
+    <span class="pill">Tempo letters <span id="tempo">1.20</span></span>
   </div>
 </div>
 
@@ -107,12 +58,7 @@ resize();
 
 const uiEnergy = document.getElementById("energy");
 const uiTarget = document.getElementById("targetLetter");
-const uiTempoLetters = document.getElementById("tempoLetters");
-
-const lettersStartSlider = document.getElementById("lettersStart");
-const lettersFastSlider  = document.getElementById("lettersFast");
-const lettersStartVal     = document.getElementById("lettersStartVal");
-const lettersFastVal      = document.getElementById("lettersFastVal");
+const uiTempo  = document.getElementById("tempo");
 
 function loadImg(src){ const img = new Image(); img.src = src; return img; }
 const carStraight = loadImg("car_straight.png");
@@ -122,20 +68,21 @@ const treeImg = loadImg("tree.png");
 
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a,b,t){ return a + (b-a)*t; }
-function mod(n,m){ return ((n % m) + m) % m; }
 
 let energy = 100;
-
-/* wereldtempo blijft constant */
-const WORLD_SPEED = 9.2;
 let roadScroll = 0;
 
-/* letters tempo is los en variabel */
-let letterTempo = 1.20;
-let letterTempoMin = 1.20;
-let letterTempoMax = 3.00;
+/* wereldtempo blijft constant */
+const WORLD_TEMPO = 1.0;
 
-/* letters en opdrachtletter */
+/* lettertempo verandert wel */
+let letterTempo = 1.20;
+const LETTER_TEMPO_MIN = 1.20;
+const LETTER_TEMPO_MAX = 3.00;
+
+const SPEED_UP = 0.12;
+const SPEED_DOWN = 0.10;
+
 const letters = "aeioumkstprln".split("");
 let targetLetter = letters[Math.floor(Math.random()*letters.length)];
 uiTarget.textContent = targetLetter;
@@ -153,38 +100,13 @@ const car = {
   steerDx: 0,
   w: 150,
   h: 90,
-  scale: 1.34
+  scale: 1.28
 };
 
-/* items, maar één keer gedeclareerd */
+/* letters */
 const items = [];
 const MAX_ITEMS = 2;
 const SPAWN_FRAMES_BASE = 170;
-
-/* effect op lettertempo */
-const LETTERS_UP = 0.12;
-const LETTERS_DOWN_WRONG = 0.12;
-const LETTERS_DOWN_MISS = 0.10;
-
-/* UI sync */
-function syncLetterSliders(){
-  letterTempoMin = parseFloat(lettersStartSlider.value);
-  letterTempoMax = parseFloat(lettersFastSlider.value);
-
-  if(letterTempoMax < letterTempoMin){
-    letterTempoMax = letterTempoMin;
-    lettersFastSlider.value = String(letterTempoMax.toFixed(2));
-  }
-
-  lettersStartVal.textContent = letterTempoMin.toFixed(2);
-  lettersFastVal.textContent = letterTempoMax.toFixed(2);
-
-  letterTempo = clamp(letterTempo, letterTempoMin, letterTempoMax);
-  uiTempoLetters.textContent = letterTempo.toFixed(2);
-}
-lettersStartSlider.addEventListener("input", syncLetterSliders);
-lettersFastSlider.addEventListener("input", syncLetterSliders);
-syncLetterSliders();
 
 /* weg geometrie */
 function roadWidthAt(y){
@@ -207,7 +129,95 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* gras */
+/* bomen, vaste instellingen, geen sliders meer */
+const trees = [];
+const MAX_TREES = 4;
+const TREE_SPAWN_FRAMES_BASE = 240;
+let treeSpawnTimer = 0;
+
+const TREE_ACCEL_START = 2.48;
+const TREE_ACCEL_END   = 120.0;
+const X_RIGHT_END = 319;
+const X_LEFT_END  = 256;
+
+function spawnTree(){
+  if(trees.length >= MAX_TREES) return;
+  const side = Math.random() < 0.5 ? "left" : "right";
+  const sizeSeed = 0.88 + Math.random() * 0.28;
+
+  trees.push({
+    side,
+    baseY: -460,
+    sizeSeed
+  });
+}
+
+function treeSize(tr){
+  const t = clamp(tr.baseY / canvas.height, 0, 1);
+  const p = t ** 1.05;
+  const w = (18 + p * 1180) * tr.sizeSeed;
+  const h = w * 1.10;
+  return { w, h };
+}
+
+function treeX(tr){
+  const e = roadEdgesAt(tr.baseY);
+  const t = clamp(tr.baseY / canvas.height, 0, 1);
+
+  const marginTop = 46;
+  const marginBottom = tr.side === "left" ? X_LEFT_END : X_RIGHT_END;
+  const margin = lerp(marginTop, marginBottom, t ** 1.15);
+
+  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
+}
+
+function updateTrees(dt){
+  treeSpawnTimer += dt;
+  const threshold = TREE_SPAWN_FRAMES_BASE / WORLD_TEMPO;
+  if(treeSpawnTimer > threshold){
+    treeSpawnTimer = 0;
+    spawnTree();
+  }
+
+  for(let i = trees.length - 1; i >= 0; i--){
+    const tr = trees[i];
+    const t = clamp(tr.baseY / canvas.height, 0, 1);
+
+    const curve = 2.10;
+    const accel = lerp(TREE_ACCEL_START, TREE_ACCEL_END, t ** curve);
+
+    let dy = (accel * WORLD_TEMPO) * dt * 3.0;
+
+    const maxStep = 190 * dt * WORLD_TEMPO;
+    dy = Math.min(dy, maxStep);
+
+    tr.baseY += dy;
+
+    const h = treeSize(tr).h;
+    if(tr.baseY - h > canvas.height + 80) trees.splice(i, 1);
+  }
+}
+
+function drawTrees(){
+  for(const tr of trees){
+    const { w, h } = treeSize(tr);
+    const x = treeX(tr);
+
+    const topY = tr.baseY - h;
+    const shadowY = tr.baseY + h * 0.06;
+
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(x, shadowY, w * 0.34, h * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if(treeImg.complete && treeImg.naturalWidth){
+      ctx.drawImage(treeImg, x - w/2, topY, w, h);
+    }
+  }
+}
+
+/* achtergrond */
 function drawGrass(){
   ctx.fillStyle = "#3aa64b";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -311,74 +321,6 @@ function drawRoad(){
   }
 }
 
-/* bomen zonder schaduw */
-const trees = [];
-const MAX_TREES = 4;
-const TREE_SPAWN_FRAMES_BASE = 240;
-let treeSpawnTimer = 0;
-
-function spawnTree(){
-  if(trees.length >= MAX_TREES) return;
-  const side = Math.random() < 0.5 ? "left" : "right";
-  const sizeSeed = 0.88 + Math.random() * 0.28;
-  trees.push({ side, baseY: -460, sizeSeed });
-}
-
-function treeSize(tr){
-  const t = clamp(tr.baseY / canvas.height, 0, 1);
-  const p = t ** 1.05;
-  const w = (18 + p * 1180) * tr.sizeSeed;
-  const h = w * 1.10;
-  return { w, h };
-}
-
-function treeX(tr){
-  const e = roadEdgesAt(tr.baseY);
-  const t = clamp(tr.baseY / canvas.height, 0, 1);
-
-  const marginTop = 46;
-  const marginBottom = 300;
-  const margin = lerp(marginTop, marginBottom, t ** 1.15);
-
-  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
-}
-
-function updateTrees(dt){
-  treeSpawnTimer += dt;
-  if(treeSpawnTimer > TREE_SPAWN_FRAMES_BASE){
-    treeSpawnTimer = 0;
-    spawnTree();
-  }
-
-  for(let i = trees.length - 1; i >= 0; i--){
-    const tr = trees[i];
-    const t = clamp(tr.baseY / canvas.height, 0, 1);
-
-    const accel = 0.40 + (t ** 1.85) * 2.8;
-    let dy = (WORLD_SPEED * accel) * dt;
-
-    const cap = (10 + t * 40) * dt;
-    dy = Math.min(dy, cap);
-
-    tr.baseY += dy;
-
-    const h = treeSize(tr).h;
-    if(tr.baseY - h > canvas.height + 80) trees.splice(i, 1);
-  }
-}
-
-function drawTrees(){
-  for(const tr of trees){
-    const { w, h } = treeSize(tr);
-    const x = treeX(tr);
-    const topY = tr.baseY - h;
-
-    if(treeImg.complete && treeImg.naturalWidth){
-      ctx.drawImage(treeImg, x - w/2, topY, w, h);
-    }
-  }
-}
-
 /* letters */
 function drawItem(it){
   const t = clamp(it.y / canvas.height, 0, 1);
@@ -402,7 +344,13 @@ function spawnLetter(){
   const isTarget = Math.random() < 0.33;
   const letter = isTarget ? targetLetter : letters[Math.floor(Math.random() * letters.length)];
 
-  items.push({ lane, y: -70, letter, isTarget, vy: 8.2 });
+  items.push({
+    lane,
+    y: -70,
+    letter,
+    isTarget,
+    vy: 8.2
+  });
 }
 
 let spawnTimer = 0;
@@ -418,7 +366,7 @@ function updateTargetLetter(dt){
   }
 }
 
-/* auto */
+/* auto tekenen */
 function chooseCarSprite(){
   if(car.steerDx < -18) return carLeft;
   if(car.steerDx > 18) return carRight;
@@ -439,24 +387,15 @@ function drawCar(){
   ctx.translate(car.x, car.y);
   ctx.rotate(car.tilt * 0.40);
 
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
+  ctx.beginPath();
+  ctx.ellipse(0, h * 0.36, w * 0.34, h * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   if(img.complete && img.naturalWidth){
     ctx.drawImage(img, -w/2, -h/2, w, h);
   }
   ctx.restore();
-}
-
-/* lettertempo regels */
-function bumpLettersGood(){
-  letterTempo = clamp(letterTempo + LETTERS_UP, letterTempoMin, letterTempoMax);
-  uiTempoLetters.textContent = letterTempo.toFixed(2);
-}
-function bumpLettersWrong(){
-  letterTempo = clamp(letterTempo - LETTERS_DOWN_WRONG, letterTempoMin, letterTempoMax);
-  uiTempoLetters.textContent = letterTempo.toFixed(2);
-}
-function bumpLettersMiss(){
-  letterTempo = clamp(letterTempo - LETTERS_DOWN_MISS, letterTempoMin, letterTempoMax);
-  uiTempoLetters.textContent = letterTempo.toFixed(2);
 }
 
 /* update en draw */
@@ -466,20 +405,27 @@ function update(dt){
 
   updateTargetLetter(dt);
 
-  roadScroll += WORLD_SPEED * dt;
+  roadScroll += (9.2 * WORLD_TEMPO) * dt;
 
+  // tempo display is tempo letters
+  uiTempo.textContent = letterTempo.toFixed(2);
+
+  // auto naar lane
   const targetX = laneX(state.lane, car.y);
   const dx = targetX - car.x;
   car.steerDx = dx;
   car.x += dx * (0.085 * dt);
   car.tilt += (clamp(dx / (canvas.width * 0.75), -0.28, 0.28) - car.tilt) * (0.09 * dt);
 
+  // letters spawn, sneller bij hoger lettertempo
   spawnTimer += dt;
-  if(spawnTimer > SPAWN_FRAMES_BASE){
+  const spawnThreshold = SPAWN_FRAMES_BASE / letterTempo;
+  if(spawnTimer > spawnThreshold){
     spawnTimer = 0;
     spawnLetter();
   }
 
+  // letters bewegen en hit detectie, tempo letters bepaalt snelheid
   for(let i = items.length - 1; i >= 0; i--){
     const it = items[i];
     it.y += (it.vy * letterTempo) * dt;
@@ -489,54 +435,18 @@ function update(dt){
 
     if(hit){
       if(it.isTarget){
-        bumpLettersGood();
+        letterTempo = clamp(letterTempo + SPEED_UP, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
         targetTimer = TARGET_SWITCH_SECONDS;
       } else {
-        bumpLettersWrong();
+        letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
       }
+
       energy = Math.min(140, energy + 10);
       items.splice(i, 1);
       continue;
     }
 
+    // missen van een doel letter, ook vertragen
     if(it.y > canvas.height + 160){
-      if(it.isTarget) bumpLettersMiss();
-      items.splice(i, 1);
-    }
-  }
-
-  updateTrees(dt);
-}
-
-function draw(){
-  drawGrass();
-  drawRoad();
-
-  for(const it of items) drawItem(it);
-
-  drawCar();
-  drawTrees();
-}
-
-function loop(now){
-  const dt = Math.min(3, (now - state.lastTime) / (1000/60));
-  state.lastTime = now;
-
-  if(energy > 0) update(dt);
-  draw();
-
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-/* besturing */
-canvas.addEventListener("pointerdown", (e)=>{
-  const x = e.clientX;
-  if(x < canvas.width / 3) state.lane = 0;
-  else if(x < canvas.width * 2 / 3) state.lane = 1;
-  else state.lane = 2;
-});
-</script>
-
-</body>
-</html>
+      if(it.isTarget){
+        letterTe
