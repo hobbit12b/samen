@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Letter Race</title>
 
 <style>
@@ -216,6 +216,29 @@
   input:focus{
     border-color: rgba(0,0,0,0.28);
   }
+  .letterChip{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:12px;
+    border:2px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.85);
+    padding:10px 8px;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+    font-weight: 800;
+    text-transform: lowercase;
+    cursor:pointer;
+    user-select:none;
+  }
+  .letterChip input{ display:none; }
+  .letterChip.on{
+    border-color: rgba(0,0,0,0.35);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.10);
+  }
+  .letterChip.off{
+    opacity:0.45;
+  }
+
   .hint{
     font-size:12px;
     color: rgba(0,0,0,0.65);
@@ -265,11 +288,13 @@
   <div id="settingsPanel">
     <h2>Instellingen</h2>
 
+    
     <div class="field">
-      <label for="lettersInput">Aangeboden letters</label>
-      <input id="lettersInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" />
-      <div class="hint">Typ letters achter elkaar of met spaties, bijvoorbeeld: a e i o u m k s</div>
+      <label>Aangeboden letters</label>
+      <div id="lettersGrid" style="display:grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap:8px;"></div>
+      <div class="hint">Vink aan met welke letters je wilt spelen</div>
     </div>
+
 
     <div class="field">
       <label for="hitsInput">Aantal keer goed per letter</label>
@@ -312,7 +337,7 @@ const uiTagNew = document.getElementById("tagNew");
 const trophyEl = document.getElementById("trophy");
 
 const settingsOverlay = document.getElementById("settingsOverlay");
-const lettersInput = document.getElementById("lettersInput");
+const lettersGrid = document.getElementById("lettersGrid");
 const hitsInput = document.getElementById("hitsInput");
 const btnSave = document.getElementById("saveSettings");
 const btnClose = document.getElementById("closeSettings");
@@ -364,13 +389,66 @@ function saveSettings(obj){
   }catch(e){}
 }
 
-let allowedLetters = "aeioumkstprln".split("");
+
+
+/* ===== Letterkeuze via vinkjes ===== */
+const DEFAULT_POOL = "aeioumkstprln".split("");
+
+function buildLettersGrid(){
+  if(!lettersGrid) return;
+
+  lettersGrid.innerHTML = "";
+
+  for(const ch of DEFAULT_POOL){
+    const lab = document.createElement("label");
+    lab.className = "letterChip";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = ch;
+    cb.checked = allowedLetters.includes(ch);
+
+    const span = document.createElement("span");
+    span.textContent = ch;
+
+    const sync = ()=>{
+      lab.classList.toggle("on", cb.checked);
+      lab.classList.toggle("off", !cb.checked);
+    };
+    cb.addEventListener("change", sync);
+
+    lab.addEventListener("click", (e)=>{
+      if(e.target !== cb){
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event("change"));
+      }
+    });
+
+    lab.appendChild(cb);
+    lab.appendChild(span);
+    lettersGrid.appendChild(lab);
+
+    sync();
+  }
+}
+
+function getCheckedLetters(){
+  if(!lettersGrid) return DEFAULT_POOL.slice();
+  const cbs = lettersGrid.querySelectorAll("input[type=checkbox]");
+  const out = [];
+  for(const cb of cbs){
+    if(cb.checked) out.push(cb.value);
+  }
+  return out.length ? out : ["a"];
+}
+
+let allowedLetters = DEFAULT_POOL.slice();
 let requiredHits = 5;
 
 const saved = loadSettings();
 if(saved){
   const maybeLetters = normalizeLetters(saved.letters || "");
-  if(maybeLetters.length) allowedLetters = maybeLetters;
+  if(maybeLetters.length) allowedLetters = maybeLetters.filter(ch=>DEFAULT_POOL.includes(ch));
   const n = Number(saved.requiredHits);
   if(Number.isFinite(n)) requiredHits = clamp(Math.floor(n), 1, 20);
 }
@@ -561,45 +639,40 @@ function onLevelCompleted(){
 
 
 /* ===== Verborgen menu openen: 6 snelle tikken op de coureur ===== */
-let tapCount = 0;
-let tapWindowFrames = 0;
+let longPressTimer = null;
+const LONG_PRESS_MS = 850;
 
-function openSettings(){
-  lettersInput.value = allowedLetters.join(" ");
-  hitsInput.value = requiredHits;
-  settingsOverlay.style.display = "flex";
+function armLongPress(){
+  disarmLongPress();
+  longPressTimer = setTimeout(()=>{
+    longPressTimer = null;
+    openSettings();
+  }, LONG_PRESS_MS);
 }
 
-function closeSettings(){
-  settingsOverlay.style.display = "none";
+function disarmLongPress(){
+  if(longPressTimer){
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
 }
 
 coachImgEl.addEventListener("pointerdown", (e)=>{
   e.preventDefault();
   e.stopPropagation();
-
-  tapCount++;
-  tapWindowFrames = 40;
-
-  if(tapCount >= 6){
-    tapCount = 0;
-    tapWindowFrames = 0;
-    openSettings();
-  }
+  armLongPress();
 });
+
+coachImgEl.addEventListener("pointerup", ()=> disarmLongPress());
+coachImgEl.addEventListener("pointercancel", ()=> disarmLongPress());
+coachImgEl.addEventListener("pointerleave", ()=> disarmLongPress());
 
 btnClose.addEventListener("click", ()=> closeSettings());
 
 btnSave.addEventListener("click", ()=>{
-  const nextLetters = normalizeLetters(lettersInput.value);
   const nextHits = clamp(Math.floor(Number(hitsInput.value || 5)), 1, 20);
 
-  if(nextLetters.length){
-    allowedLetters = nextLetters;
-  } else {
-    allowedLetters = ["a"];
-  }
-
+  allowedLetters = getCheckedLetters();
   requiredHits = nextHits;
   remainingHits = requiredHits;
 
@@ -897,7 +970,7 @@ function spawnLetter(){
     y: -70,
     letter,
     isTarget,
-    vy: 8.2
+    vy: 6.0
   });
 }
 
@@ -957,15 +1030,6 @@ function nextTargetLetter(){
 
 /* update en draw */
 function update(dt){
-  /* tikken tellen voor verborgen menu */
-  if(tapWindowFrames > 0){
-    tapWindowFrames -= dt;
-    if(tapWindowFrames <= 0){
-      tapCount = 0;
-      tapWindowFrames = 0;
-    }
-  }
-
   /* mood terug naar neutraal */
   if(coachMoodTimer > 0){
     coachMoodTimer -= dt;
@@ -1063,6 +1127,12 @@ canvas.addEventListener("pointerdown", (e)=>{
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
 });
+
+/* zoom blokkeren */
+document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
 
 /* start */
 updateCoachLetter(true);
