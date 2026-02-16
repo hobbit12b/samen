@@ -12,6 +12,7 @@
 
 
 
+
   html, body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; touch-action:none; }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
 
@@ -350,20 +351,7 @@
   }
 
 
-  /* COACH_RIGHT_FORCE_V22 */
-  #coachWrap{
-    position: fixed !important;
-    top: calc(12px + env(safe-area-inset-top)) !important;
-    right: calc(12px + env(safe-area-inset-right)) !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 9998 !important;
-    pointer-events: auto !important;
-  }
-  #coach{
-    pointer-events: auto !important;
-  }
-
+  
   #toast{
     position: fixed;
     top: calc(68px + env(safe-area-inset-top));
@@ -383,6 +371,32 @@
   #toast.show{
     opacity: 1;
     transform: translateY(0);
+  }
+
+
+  /* COACH_RIGHT_FORCE_V23 */
+  #coach{
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    bottom: auto !important;
+    z-index: 9998 !important;
+    pointer-events: auto !important;
+  }
+
+  #coachImg{ pointer-events: auto; }
+  #speech{ pointer-events: auto; }
+
+  #secretHotspot{
+    position: fixed;
+    top: calc(0px + env(safe-area-inset-top));
+    right: calc(0px + env(safe-area-inset-right));
+    width: 110px;
+    height: 110px;
+    z-index: 10001;
+    background: rgba(0,0,0,0.0);
+    pointer-events: auto;
   }
 
 </style>
@@ -454,8 +468,10 @@
 <div id="toast"></div>
 
 <button id="muteBtn" aria-label="Muziek aan of uit" type="button">🎵</button>
+<div id="secretHotspot" aria-hidden="true"></div>
 
 <script>
+
 
 
 
@@ -568,6 +584,35 @@ const BGM_SRC = "audio/gamemusic.mp3";
 const BGM_MUTE_KEY = "letter_race_music_on_v1";
 let bgm = null;
 let musicOn = true;
+
+/* MUTE_BUTTON_BIND_V23: mute knop schakelt alleen muziek */
+(function(){
+  const muteBtn = document.getElementById("muteBtn");
+  if(!muteBtn) return;
+
+  function applyIcon(){
+    muteBtn.textContent = musicOn ? "🎵" : "🔇";
+  }
+  applyIcon();
+
+  const toggle = (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    unlockAudio();
+
+    musicOn = !musicOn;
+    try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
+
+    if(musicOn){ startBgm(); if(typeof toast==="function") toast("Muziek aan"); }
+    else { stopBgm(); if(typeof toast==="function") toast("Muziek uit"); }
+
+    applyIcon();
+  };
+
+  muteBtn.addEventListener("pointerdown", toggle, { passive:false });
+  muteBtn.addEventListener("touchstart", toggle, { passive:false });
+  muteBtn.addEventListener("contextmenu", (e)=> e.preventDefault());
+})();
 try{ const raw = localStorage.getItem(BGM_MUTE_KEY); if(raw === "0") musicOn = false; }catch(e){}
 
 const SPEECH_KEY = "letter_race_speech_mode_v1";
@@ -799,20 +844,18 @@ const TEL = {
 };
 
 function speakOpdracht(letter, attemptNumber = 1){
-  if(!soundOn) return;
+  if(!soundOn) return Promise.resolve();
 
   const now = performance.now();
-  if(now - lastSpokenAt < 260) return;
+  if(now - lastSpokenAt < 260) return Promise.resolve();
   lastSpokenAt = now;
 
-  // altijd afkappen zodat het bijblijft
   stopAllAudio();
 
   if(speechMode === "calm"){
-    // rustig: korte opdracht + letter, zonder tellen
+    // rustig: opdracht + letter
     enqueue(randFrom(OPDRACHT), 1.0);
-    enqueue(letterAudio(letter), 1.0);
-    return;
+    return enqueue(letterAudio(letter), 1.0);
   }
 
   // veel praten: met tellen 2 tot 5
@@ -822,7 +865,7 @@ function speakOpdracht(letter, attemptNumber = 1){
   }
 
   enqueue(randFrom(OPDRACHT), 1.0);
-  enqueue(letterAudio(letter), 1.0);
+  return enqueue(letterAudio(letter), 1.0);
 }
 
 function speakGoed(letter){
@@ -1161,7 +1204,7 @@ function playTrophyAnimation(onDone){
 
 
 
-function onLevelCompleted(){
+async function onLevelCompleted(){
   intermission = true;
 
   // haal resterende letters weg zodat het rustig blijft tijdens het feestje
@@ -1173,14 +1216,19 @@ function onLevelCompleted(){
   spawnConfetti();
   setCoachMood("trophy", 120);
 
-  playTrophyAnimation(()=>{
-    Promise.resolve(levelAudio).then(()=>{
-      setCoachMood("neutral", 0);
-      nextTargetLetter();
-      intermission = false;
-    });
+  playTrophyAnimation(async ()=>{
+    // wacht eerst tot het level geluid klaar is
+    try{ await Promise.resolve(levelAudio); }catch(e){}
+
+    // pas daarna nieuwe letter kiezen en opdracht afspelen
+    setCoachMood("neutral", 0);
+    try{ await Promise.resolve(nextTargetLetter()); }catch(e){}
+
+    // nu pas weer letters laten vallen
+    intermission = false;
   });
 }
+
 
 
 
@@ -1613,7 +1661,8 @@ function nextTargetLetter(){
   targetLetter = next;
   remainingHits = requiredHits;
   updateCoachLetter(true);
-}
+return speakOpdracht(targetLetter, 1);
+  }
 
 /* update en draw */
 function update(dt){
@@ -1716,6 +1765,56 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
+
+/* KEYBOARD_LANES_V23 */
+addEventListener("keydown", (e)=>{
+  if(e.key === "ArrowLeft"){
+    e.preventDefault();
+    state.lane = Math.max(0, state.lane - 1);
+  }else if(e.key === "ArrowRight"){
+    e.preventDefault();
+    state.lane = Math.min(2, state.lane + 1);
+  }
+});
+
+
+/* TRIPLE_TAP_SETTINGS_V23 */
+(function(){
+  const targets = [
+    document.getElementById("coach"),
+    document.getElementById("coachImg"),
+    document.getElementById("speech"),
+    document.getElementById("secretHotspot")
+  ].filter(Boolean);
+
+  let taps = 0;
+  let last = 0;
+
+  const tap = (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    unlockAudio();
+    startBgm();
+
+    const now = performance.now();
+    if(now - last > 700) taps = 0;
+    taps++;
+    last = now;
+
+    if(taps >= 3){
+      taps = 0;
+      openSettings();
+      if(typeof toast === "function") toast("Docent menu");
+    }
+  };
+
+  for(const el of targets){
+    el.addEventListener("pointerdown", tap, { passive:false });
+    el.addEventListener("touchstart", tap, { passive:false });
+    el.addEventListener("contextmenu", (e)=> e.preventDefault());
+  }
+})();
+
 /* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
   unlockAudio();
@@ -1757,73 +1856,9 @@ requestAnimationFrame(loop);
 
 
 
-/* MUTE_BUTTON_BIND_V22: mute knop schakelt alleen muziek */
-(function(){
-  const muteBtn = document.getElementById("muteBtn");
-  if(!muteBtn) return;
-
-  function applyIcon(){
-    muteBtn.textContent = musicOn ? "🎵" : "🔇";
-  }
-  applyIcon();
-
-  const toggle = (e)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    unlockAudio();
-
-    musicOn = !musicOn;
-    try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
-
-    if(musicOn){ startBgm(); toast("Muziek aan"); }
-    else { stopBgm(); toast("Muziek uit"); }
-
-    applyIcon();
-  };
-
-  muteBtn.addEventListener("pointerdown", toggle, { passive:false });
-  muteBtn.addEventListener("touchstart", toggle, { passive:false });
-  muteBtn.addEventListener("contextmenu", (e)=> e.preventDefault());
-})();
 
 
-/* TRIPLE_TAP_SETTINGS_V22: 3x snel tikken op de coureur opent docent menu */
-(function(){
-  const targets = [
-    document.getElementById("coachWrap"),
-    document.getElementById("coach"),
-    document.getElementById("coachImg")
-  ].filter(Boolean);
 
-  if(!targets.length) return;
-
-  let taps = 0;
-  let last = 0;
-
-  const tap = (e)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    unlockAudio();
-    startBgm();
-
-    const now = performance.now();
-    if(now - last > 700) taps = 0;
-    taps++;
-    last = now;
-
-    if(taps >= 3){
-      taps = 0;
-      openSettings();
-      toast("Docent menu");
-    }
-  };
-
-  for(const el of targets){
-    el.addEventListener("pointerdown", tap, { passive:false });
-    el.addEventListener("touchstart", tap, { passive:false });
-    el.addEventListener("contextmenu", (e)=> e.preventDefault());
-  }
-})();
 
 </script>
 
