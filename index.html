@@ -307,16 +307,7 @@
       <label for="hitsInput">Aantal keer goed per letter</label>
       <input id="hitsInput" type="number" min="1" max="20" inputmode="numeric" />
       <div class="hint">Bijvoorbeeld 5, pas daarna kiest het spel een nieuwe letter</div>
-    
-    <div class="field">
-      <label>Geluid</label>
-      <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
-        <input id="soundToggle" type="checkbox" style="width:22px; height:22px;" />
-        Aan
-      </label>
-      <div class="hint">Zet uit als je even stil wilt werken</div>
     </div>
-</div>
 
     <div class="btnRow">
       <button class="btnGhost" id="closeSettings">Sluiten</button>
@@ -375,148 +366,6 @@ function drawEllipse(x, y, rx, ry, rot = 0){
   ctx.restore();
 }
 
-
-/* ===== Geluid ===== */
-let soundOn = true;
-const SOUND_KEY = "letter_race_sound_on_v1";
-
-try{
-  const raw = localStorage.getItem(SOUND_KEY);
-  if(raw === "0") soundOn = false;
-}catch(e){}
-
-const soundToggle = document.getElementById("soundToggle");
-if(soundToggle){
-  soundToggle.checked = !!soundOn;
-  soundToggle.addEventListener("change", ()=>{
-    soundOn = soundToggle.checked;
-    try{ localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); }catch(e){}
-  });
-}
-
-let audioUnlocked = false;
-let audioQueue = Promise.resolve();
-
-const audioCtx = (window.AudioContext || window.webkitAudioContext) ? new (window.AudioContext || window.webkitAudioContext)() : null;
-
-function unlockAudio(){
-  if(audioUnlocked) return;
-  audioUnlocked = true;
-  if(audioCtx && audioCtx.state === "suspended"){
-    audioCtx.resume().catch(()=>{});
-  }
-}
-
-function playClip(src, vol = 1.0){
-  return new Promise((resolve)=>{
-    if(!soundOn){ resolve(); return; }
-
-    const a = new Audio(src);
-    a.preload = "auto";
-    a.playsInline = true;
-    a.volume = vol;
-
-    const done = ()=>{
-      a.removeEventListener("ended", done);
-      a.removeEventListener("error", done);
-      resolve();
-    };
-
-    a.addEventListener("ended", done);
-    a.addEventListener("error", done);
-
-    const p = a.play();
-    if(p && typeof p.catch === "function"){
-      p.catch(()=> resolve());
-    }
-  });
-}
-
-function enqueue(src, vol = 1.0){
-  audioQueue = audioQueue.then(()=> playClip(src, vol)).catch(()=>{});
-  return audioQueue;
-}
-
-const ANKER = {
-  a: "appel", b: "bal", c: "cavia", d: "doos", e: "eend", f: "fiets",
-  g: "gum", h: "huis", i: "ijs", j: "jas", k: "kat", l: "lamp",
-  m: "muis", n: "neus", o: "olifant", p: "paard", q: "quiz", r: "roos",
-  s: "sok", t: "touw", u: "ui", v: "vis", w: "water", x: "xylofoon",
-  y: "yoyo", z: "zon"
-};
-
-function letterAudio(letter){
-  const w = ANKER[letter] || "anker";
-  return `audio/letters/letter_${letter}_${w}.mp3`;
-}
-
-function randFrom(list){ return list[Math.floor(Math.random() * list.length)]; }
-
-const OPDRACHT = [
-  "audio/opdracht/opdracht_01.mp3",
-  "audio/opdracht/opdracht_02.mp3",
-  "audio/opdracht/opdracht_03.mp3",
-  "audio/opdracht/opdracht_04.mp3",
-  "audio/opdracht/opdracht_05.mp3"
-];
-
-const GOED = [
-  "audio/goed/goed_01.mp3",
-  "audio/goed/goed_02.mp3",
-  "audio/goed/goed_03.mp3",
-  "audio/goed/goed_04.mp3"
-];
-
-const FOUT = [
-  "audio/fout/fout_01.mp3",
-  "audio/fout/fout_02.mp3",
-  "audio/fout/fout_03.mp3"
-];
-
-const LEVEL = [
-  "audio/level/level_01.mp3",
-  "audio/level/level_02.mp3",
-  "audio/level/level_03.mp3"
-];
-
-const PREFIX_EN_NU_DE = "audio/prefix/en_nu_de.mp3";
-const TEL = {
-  2: "audio/tel/tel_2.mp3",
-  3: "audio/tel/tel_3.mp3",
-  4: "audio/tel/tel_4.mp3",
-  5: "audio/tel/tel_5.mp3"
-};
-
-function speakOpdracht(letter, attemptNumber = 1){
-  if(!soundOn) return;
-
-  if(attemptNumber >= 2 && attemptNumber <= 5){
-    enqueue(PREFIX_EN_NU_DE, 1.0);
-    enqueue(TEL[attemptNumber], 1.0);
-  }
-
-  enqueue(randFrom(OPDRACHT), 1.0);
-  enqueue(letterAudio(letter), 1.0);
-}
-
-function speakGoed(letter){
-  enqueue(randFrom(GOED), 1.0);
-  if(Math.random() < 0.55){
-    enqueue(letterAudio(letter), 1.0);
-  }
-}
-
-function speakFout(letter){
-  enqueue(randFrom(FOUT), 1.0);
-  enqueue(randFrom(OPDRACHT), 1.0);
-  enqueue(letterAudio(letter), 1.0);
-}
-
-function speakLevel(){
-  enqueue(randFrom(LEVEL), 1.0);
-}
-
-
 /* ===== Instelbare letters en doelherhaling ===== */
 const STORAGE_KEY = "letter_race_settings_v1";
 
@@ -550,7 +399,7 @@ function saveSettings(obj){
 
 
 /* ===== Letterkeuze via vinkjes ===== */
-const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
+const DEFAULT_POOL = "aeioumkstprln".split("");
 
 function buildLettersGrid(){
   if(!lettersGrid) return;
@@ -786,7 +635,6 @@ function playTrophyAnimation(onDone){
 
 
 function onLevelCompleted(){
-  speakLevel();
   spawnConfetti();
   setCoachMood("trophy", 120);
   playTrophyAnimation(()=>{
@@ -843,7 +691,6 @@ coachImgEl.addEventListener("contextmenu", (e)=> e.preventDefault());
 coachImgEl.addEventListener("selectstart", (e)=> e.preventDefault());
 
 coachImgEl.addEventListener("pointerdown", (e)=>{
-  unlockAudio();
   e.preventDefault();
   e.stopPropagation();
   registerTap();
@@ -856,7 +703,6 @@ coachImgEl.addEventListener("pointerleave", ()=> disarmLongPress());
 
 /* extra: touch events met passive:false zodat preventDefault werkt */
 coachImgEl.addEventListener("touchstart", (e)=>{
-  unlockAudio();
   e.preventDefault();
   registerTap();
   armLongPress();
@@ -876,7 +722,6 @@ btnSave.addEventListener("click", ()=>{
 
   targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
   updateCoachLetter(true);
-  speakOpdracht(targetLetter, 1);
   setCoachMood("neutral", 0);
 
   saveSettings({ letters: allowedLetters.join(""), requiredHits });
@@ -1269,18 +1114,14 @@ function update(dt){
 
         remainingHits = Math.max(0, remainingHits - 1);
         updateProgressDots();
-        speakGoed(targetLetter);
-        if(remainingHits > 0){
-          const attemptNumber = (requiredHits - remainingHits) + 1;
-          speakOpdracht(targetLetter, attemptNumber);
-        }
+
         if(remainingHits <= 0 && !trophyAnimating){
           onLevelCompleted();
         }
       } else {
         setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
-        speakFout(targetLetter);
+
         /* bij fout gaat er één rondje weg */
         if(remainingHits < requiredHits){
           remainingHits = Math.min(requiredHits, remainingHits + 1);
@@ -1322,7 +1163,6 @@ function loop(now){
 
 /* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
-  unlockAudio();
   if(settingsOverlay.style.display === "flex") return;
   if(trophyAnimating) return;
 
@@ -1346,7 +1186,6 @@ document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, {
 
 /* start */
 updateCoachLetter(true);
-  speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
 </script>
 
