@@ -6,12 +6,14 @@
 <title>Letter Race</title>
 
 <style>
+
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
   canvas { display:block; }
 
   /* Coureur rechtsboven */
   #coach{
     position:absolute;
+    position: relative;
     top:10px;
     right:10px;
     display:flex;
@@ -294,8 +296,10 @@
     -webkit-user-select:none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-  }
+  
+    z-index: 50;}
   #muteBtn:active{ transform: scale(0.98); }
+
 
 </style>
 </head>
@@ -303,6 +307,7 @@
 <body>
 
 <div id="coach" aria-hidden="true">
+  <button id="muteBtn" aria-label="Geluid aan of uit" type="button">🔊</button>
   <div id="speech">
     <span id="tagNew">nieuwe letter</span>
     <span id="coachLetter">a</span>
@@ -365,6 +370,7 @@
 <canvas id="game"></canvas>
 
 <script>
+
 
 
 const canvas = document.getElementById("game");
@@ -662,13 +668,20 @@ function speakOpdracht(letter, attemptNumber = 1){
   if(!soundOn) return;
 
   const now = performance.now();
-  if(now - lastSpokenAt < 350) return;
+  if(now - lastSpokenAt < 260) return;
   lastSpokenAt = now;
 
+  // altijd afkappen zodat het bijblijft
+  stopAllAudio();
+
   if(speechMode === "calm"){
-    if(!(attemptNumber === 1 || attemptNumber === 3 || attemptNumber === 5)) return;
+    // rustig: korte opdracht + letter, zonder tellen
+    enqueue(randFrom(OPDRACHT), 1.0);
+    enqueue(letterAudio(letter), 1.0);
+    return;
   }
 
+  // veel praten: met tellen 2 tot 5
   if(attemptNumber >= 2 && attemptNumber <= 5){
     enqueue(PREFIX_EN_NU_DE, 1.0);
     enqueue(TEL[attemptNumber], 1.0);
@@ -681,15 +694,22 @@ function speakOpdracht(letter, attemptNumber = 1){
 function speakGoed(letter){
   if(!soundOn) return;
 
+  // altijd actueel blijven
+  stopAllAudio();
+
   const now = performance.now();
-  if(now - lastSpokenAt < 220) return;
+  if(now - lastSpokenAt < 180) return;
   lastSpokenAt = now;
 
-  enqueue(randFrom(GOED), 1.0);
-
-  if(speechMode === "full" && Math.random() < 0.55){
+  if(speechMode === "calm"){
+    // rustig: focus op de letter, kort en krachtig
     enqueue(letterAudio(letter), 1.0);
+    return;
   }
+
+  // veel praten: eerst compliment, dan altijd de letter
+  enqueue(randFrom(GOED), 1.0);
+  enqueue(letterAudio(letter), 1.0);
 }
 
 function speakFout(letter){
@@ -697,14 +717,19 @@ function speakFout(letter){
 
   stopAllAudio();
 
-  enqueue(randFrom(FOUT), 1.0);
+  const now = performance.now();
+  if(now - lastSpokenAt < 200) return;
+  lastSpokenAt = now;
 
-  if(speechMode === "full"){
-    enqueue(randFrom(OPDRACHT), 1.0);
+  if(speechMode === "calm"){
+    // rustig: meteen terug naar de letter, kort
     enqueue(letterAudio(letter), 1.0);
-  } else {
-    enqueue(letterAudio(letter), 1.0);
+    return;
   }
+
+  enqueue(randFrom(FOUT), 1.0);
+  enqueue(randFrom(OPDRACHT), 1.0);
+  enqueue(letterAudio(letter), 1.0);
 }
 
 function speakLevel(){
@@ -1505,9 +1530,9 @@ function update(dt){
         updateProgressDots();
         stopAllAudio();
         speakGoed(targetLetter);
-        if(remainingHits > 0){
+        if(remainingHits > 0 && speechMode === "full"){
           const attemptNumber = (requiredHits - remainingHits) + 1;
-          speakOpdracht(targetLetter, attemptNumber);
+          if(attemptNumber === 3 || attemptNumber === 5) speakOpdracht(targetLetter, attemptNumber);
         }
         if(remainingHits <= 0 && !trophyAnimating){
           onLevelCompleted();
@@ -1584,6 +1609,7 @@ updateCoachLetter(true);
   stopAllAudio();
   speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
+
 
 
 </script>
