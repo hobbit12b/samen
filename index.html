@@ -6,12 +6,7 @@
 <title>Letter Race</title>
 
 <style>
-
-
-
-
-
-
+  :root{ --safe-bottom: env(safe-area-inset-bottom); }
 
   html, body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; touch-action:none; }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
@@ -182,8 +177,6 @@
     100% { transform: translateY(120vh) rotate(520deg); opacity:0; }
   }
 
-
-
   /* Verborgen menu */
   #settingsOverlay{
     position:absolute;
@@ -296,9 +289,6 @@
     color:#fff;
   }
 
-  
-
-
   #muteBtn{
     position: fixed;
     top: calc(12px + env(safe-area-inset-top));
@@ -346,8 +336,6 @@
     transform: translate(-50%, -50%) rotate(-45deg);
   }
 
-
-
   #coachWrap{
     position: fixed;
     top: calc(12px + env(safe-area-inset-top));
@@ -359,7 +347,6 @@
     pointer-events: auto;
   }
 
-
   /* positioneer coureur altijd rechtsboven */
   #coach{
     position: fixed !important;
@@ -369,7 +356,6 @@
     z-index: 9998 !important;
     pointer-events: auto !important;
   }
-
 
   /* COACH_RIGHT_FORCE */
   #coachWrap{
@@ -387,8 +373,6 @@
     pointer-events: auto !important;
   }
 
-
-  
   #toast{
     position: fixed;
     top: calc(68px + env(safe-area-inset-top));
@@ -409,7 +393,6 @@
     opacity: 1;
     transform: translateY(0);
   }
-
 
   /* COACH_RIGHT_FORCE_V23 */
   #coach{
@@ -436,7 +419,6 @@
     pointer-events: auto;
   }
 
-
   /* FIX v23.1: coach altijd klikbaar */
   #coach{
     pointer-events: auto !important;
@@ -455,7 +437,7 @@
 <body>
 
 <div id="coach" aria-hidden="true">
-<div id="speech">
+  <div id="speech">
     <span id="tagNew">nieuwe letter</span>
     <span id="coachLetter">a</span>
     <div id="progress"></div>
@@ -470,7 +452,6 @@
   <div id="settingsPanel">
     <h2>Instellingen</h2>
 
-    
     <div class="field">
       <label>Aangeboden letters</label>
       <div id="lettersGrid" style="display:grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap:8px;"></div>
@@ -485,14 +466,12 @@
       <div class="hint">Vink aan met welke letters je wilt spelen</div>
     </div>
 
-
     <div class="field">
       <label for="speedSlider">Lettersnelheid</label>
       <input id="speedSlider" type="range" min="55" max="100" step="5" />
       <div id="speedHint" class="hint" style="font-weight:800; opacity:0.9;"></div>
       <div class="hint">100% is normaal, lager is rustiger</div>
     </div>
-
 
     <div class="field">
       <label for="hitsInput">Aantal keer goed per letter</label>
@@ -508,7 +487,8 @@
       </select>
       <div class="hint">Rustig is fijner als het spel snel gaat</div>
     </div>
-<div class="field">
+
+    <div class="field">
       <label>Stemmen</label>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
         <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
@@ -570,7 +550,6 @@ function toast(msg){
 }
 
 canvas.style.touchAction = "none";
-
 
 function resize(){
   const vw = window.visualViewport ? Math.round(window.visualViewport.width) : innerWidth;
@@ -642,9 +621,7 @@ const btnClose = document.getElementById("closeSettings");
 const btnAllOn = document.getElementById("btnAllOn");
 const btnAllOff = document.getElementById("btnAllOff");
 
-
-/* ===== Docent menu: open en sluit =====
-*/
+/* ===== Docent menu: open en sluit ===== */
 function openSettings(){
   if(!settingsOverlay) return;
 
@@ -724,11 +701,7 @@ function drawEllipse(x, y, rx, ry, rot = 0){
   ctx.restore();
 }
 
-
-/* ===== Geluid =====
-   Zet je mp3 bestanden in de map audio.
-   Het spel speelt alles via een wachtrij zodat er niets door elkaar praat.
-*/
+/* ===== Geluid ===== */
 let soundOn = true;
 const SOUND_KEY = "letter_race_sound_on_v1";
 const BGM_SRC = "audio/gamemusic.mp3";
@@ -770,7 +743,6 @@ try{ const raw = localStorage.getItem(BGM_MUTE_KEY); if(raw === "0") musicOn = f
 const SPEECH_KEY = "letter_race_speech_mode_v1";
 let speechMode = "calm";
 try{ const raw = localStorage.getItem(SPEECH_KEY); if(raw === "full" || raw === "calm") speechMode = raw; }catch(e){}
-
 
 try{
   const raw = localStorage.getItem(SOUND_KEY);
@@ -1013,12 +985,10 @@ function speakOpdracht(letter, attemptNumber = 1){
   stopAllAudio();
 
   if(speechMode === "calm"){
-    // rustig: opdracht + letter
     enqueue(randFrom(OPDRACHT), 1.0);
     return enqueue(letterAudio(letter), 1.0);
   }
 
-  // veel praten: met tellen 2 tot 5
   if(attemptNumber >= 2 && attemptNumber <= 5){
     enqueue(PREFIX_EN_NU_DE, 1.0);
     enqueue(TEL[attemptNumber], 1.0);
@@ -1037,8 +1007,6 @@ function speakGoed(letter){
   if(now - lastSpokenAt < 160) return;
   lastSpokenAt = now;
 
-  // na elk goed fragment altijd meteen de letter
-  // dit werkt in elke praatstand en op elk device
   enqueue(randFrom(GOED), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
@@ -1074,17 +1042,14 @@ if(btnTestSound){
     unlockAudio();
     if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
 
-    // eerst een piep, dan weet je zeker dat de browser audio toelaat
     stopAllAudio();
     await beep(820, 160, 0.14);
 
-    // daarna echte mp3 bestanden
     stopAllAudio();
     speakOpdracht(targetLetter, 1);
     enqueue(randFrom(GOED), 1.0);
   });
 }
-
 
 /* ===== Instelbare letters en doelherhaling ===== */
 const STORAGE_KEY = "letter_race_settings_v3";
@@ -1115,7 +1080,6 @@ function saveSettings(obj){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
   }catch(e){}
 }
-
 
 /* ===== Letterkeuze via vinkjes ===== */
 const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
@@ -1297,7 +1261,6 @@ function setCoachMood(mood, frames = 50){
   else coachImgEl.style.backgroundImage = "url(coureur1.png)";
 }
 
-
 /* ===== Confetti ===== */
 function spawnConfetti(){
   const confettiEl = document.getElementById("confetti");
@@ -1330,16 +1293,12 @@ function spawnConfetti(){
   }, 1250);
 }
 
-
-
 /* ===== Trofee animatie: groot midden, uitzoom naar coureur, dan nieuwe letter ===== */
 let trophyAnimating = false;
-let intermission = false; // pauze tussen letters bij level gehaald
-
+let intermission = false;
 
 function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
-
 
 function waitForImage(el){
   return new Promise((resolve)=>{
@@ -1367,9 +1326,9 @@ function playTrophyAnimation(onDone){
   const endX = r.left + r.width * 0.55;
   const endY = r.top + r.height * 0.50;
 
-  const phase0 = 60;   /* fade in */
-  const phase1 = 520;  /* feest bounce */
-  const phase2 = 980;  /* uitzoomen naar hoek */
+  const phase0 = 60;
+  const phase1 = 520;
+  const phase2 = 980;
   const startTime = performance.now();
 
   setTrophyPose(startX, startY, 1.60, 0.0, 0);
@@ -1419,12 +1378,9 @@ function playTrophyAnimation(onDone){
   });
 }
 
-
-
 async function onLevelCompleted(){
   intermission = true;
 
-  // haal resterende letters weg zodat het rustig blijft tijdens het feestje
   items.length = 0;
   spawnTimer = 0;
 
@@ -1434,20 +1390,14 @@ async function onLevelCompleted(){
   setCoachMood("trophy", 120);
 
   playTrophyAnimation(async ()=>{
-    // wacht eerst tot het level geluid klaar is
     try{ await Promise.resolve(levelAudio); }catch(e){}
 
-    // pas daarna nieuwe letter kiezen en opdracht afspelen
     setCoachMood("neutral", 0);
     try{ await Promise.resolve(nextTargetLetter()); }catch(e){}
 
-    // nu pas weer letters laten vallen
     intermission = false;
   });
 }
-
-
-
 
 /* ===== Verborgen menu openen: 3 snelle tikken of lang indrukken ===== */
 let longPressTimer = null;
@@ -1544,10 +1494,8 @@ btnSave.addEventListener("click", ()=>{
 let energy = 100;
 let roadScroll = 0;
 
-/* wereldtempo blijft constant */
 const WORLD_TEMPO = 1.0;
 
-/* lettertempo verandert wel */
 let letterTempo = 1.20;
 const LETTER_TEMPO_MIN = 1.20;
 const LETTER_TEMPO_MAX = 3.00;
@@ -1593,6 +1541,35 @@ function laneX(lane, y){
   const laneW = e.w / 3;
   return e.left + laneW * (lane + 0.5);
 }
+
+/* auto onderaan netjes zichtbaar, werkt in portrait en landscape */
+const CAR_BOTTOM_GAP = 18;
+
+function getSafeBottom(){
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom");
+  return parseFloat(v) || 0;
+}
+
+function calcCarSize(){
+  const base = Math.min(canvas.width, canvas.height);
+  const w = Math.max(176, base * 0.300) * car.scale;
+  const h = w * 0.62;
+  return { w, h };
+}
+
+function syncCarBottom(){
+  const sb = getSafeBottom();
+  const { h } = calcCarSize();
+  car.y = canvas.height - sb - CAR_BOTTOM_GAP - (h / 2);
+  car.x = laneX(state.lane, car.y);
+}
+
+/* laat car ook kloppen na draaien of adresbalk veranderingen */
+addEventListener("resize", ()=> syncCarBottom());
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", ()=> syncCarBottom());
+}
+syncCarBottom();
 
 /* bomen, vaste instellingen */
 const trees = [];
@@ -1883,7 +1860,6 @@ function drawCar(){
   if(img.complete && img.naturalWidth){
     ctx.drawImage(img, -w/2, -h/2, w, h);
   } else {
-    /* fallback car: altijd zichtbaar, ook als png ontbreekt */
     ctx.fillStyle = "rgba(255,255,255,0.92)";
     const r = Math.max(10, Math.min(22, w * 0.08));
     roundRect(-w/2, -h/2, w, h, r);
@@ -1894,7 +1870,6 @@ function drawCar(){
     ctx.stroke();
 
     ctx.fillStyle = "rgba(0,0,0,0.18)";
-    // raam
     roundRect(-w*0.20, -h*0.22, w*0.40, h*0.26, r*0.6);
     ctx.fill();
   }
@@ -1924,17 +1899,14 @@ function nextTargetLetter(){
 
 /* update en draw */
 function update(dt){
-  /* mood terug naar neutraal */
   if(coachMoodTimer > 0){
     coachMoodTimer -= dt;
     if(coachMoodTimer <= 0){
-      /* trophy mood blijft even staan tot animatie klaar is */
       if(!trophyAnimating) setCoachMood("neutral", 0);
     }
   }
 
   if(intermission){
-    // laat de wereld rustig doorrollen, maar geen nieuwe letters, geen botsingen
     roadScroll += (9.2 * WORLD_TEMPO) * dt;
     updateTrees(dt);
     return;
@@ -1984,7 +1956,6 @@ function update(dt){
         setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
         speakFout(targetLetter);
-        /* bij fout gaat er één rondje weg */
         if(remainingHits < requiredHits){
           remainingHits = Math.min(requiredHits, remainingHits + 1);
           updateProgressDots();
@@ -2023,18 +1994,18 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
-
 /* KEYBOARD_LANES_V23 */
 addEventListener("keydown", (e)=>{
   if(e.key === "ArrowLeft"){
     e.preventDefault();
     state.lane = Math.max(0, state.lane - 1);
+    syncCarBottom();
   }else if(e.key === "ArrowRight"){
     e.preventDefault();
     state.lane = Math.min(2, state.lane + 1);
+    syncCarBottom();
   }
 });
-
 
 /* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
@@ -2047,9 +2018,9 @@ canvas.addEventListener("pointerdown", (e)=>{
   if(x < canvas.width / 3) state.lane = 0;
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
+
+  syncCarBottom();
 });
-
-
 
 /* context menu blokkeren op coureur */
 document.addEventListener("contextmenu", (e)=>{
@@ -2065,21 +2036,9 @@ document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, {
 
 /* start */
 updateCoachLetter(true);
-  stopAllAudio();
-  speakOpdracht(targetLetter, 1);
+stopAllAudio();
+speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
-
-
-
-
-
-
-
-
-
-
-
-
 
 </script>
 
