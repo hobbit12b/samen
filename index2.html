@@ -6,8 +6,6 @@
 <title>Letter Race</title>
 
 <style>
-  :root{ --safe-bottom: env(safe-area-inset-bottom); }
-
   html, body{
     margin:0;
     padding:0;
@@ -17,9 +15,20 @@
     background:#111;
     font-family: Arial, sans-serif;
     touch-action:none;
-    overscroll-behavior: none;
+    overscroll-behavior:none;
   }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
+
+  /* safe area probe (leest env waardes betrouwbaar uit via offsetHeight) */
+  #safeProbe{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    height: env(safe-area-inset-bottom);
+    pointer-events:none;
+    opacity:0;
+  }
 
   /* Coureur rechtsboven */
   #coach{
@@ -72,7 +81,6 @@
     border-bottom: 10px solid transparent;
   }
 
-  /* visuele "nieuwe letter" highlight */
   #speech.change{
     animation: speechPop 520ms ease;
     outline: 4px solid rgba(255,210,80,0.92);
@@ -94,9 +102,7 @@
     font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
     letter-spacing: 0.02em;
   }
-  #coachLetter.change{
-    animation: letterBounce 600ms ease;
-  }
+  #coachLetter.change{ animation: letterBounce 600ms ease; }
   @keyframes letterBounce{
     0%   { transform: scale(1); }
     30%  { transform: scale(1.26); }
@@ -121,9 +127,7 @@
     opacity:0;
     pointer-events:none;
   }
-  #tagNew.show{
-    animation: tagSlide 720ms ease;
-  }
+  #tagNew.show{ animation: tagSlide 720ms ease; }
   @keyframes tagSlide{
     0%   { opacity:0; transform: translateX(-50%) translateY(6px) scale(0.96); }
     25%  { opacity:1; transform: translateX(-50%) translateY(0px) scale(1.02); }
@@ -143,11 +147,8 @@
     border-radius:999px;
     background: rgba(0,0,0,0.12);
   }
-  .dot.filled{
-    background: rgba(0,0,0,0.55);
-  }
+  .dot.filled{ background: rgba(0,0,0,0.55); }
 
-  /* Trofee animatie */
   #trophy{
     position:fixed;
     left:0;
@@ -163,7 +164,6 @@
     will-change: transform, opacity;
   }
 
-  /* Confetti */
   #confetti{
     position:fixed;
     inset:0;
@@ -227,9 +227,7 @@
     color:#111;
   }
 
-  .settingsColumns{
-    display:block;
-  }
+  .settingsColumns{ display:block; }
   .settingsCol{
     display:flex;
     flex-direction:column;
@@ -258,18 +256,8 @@
     font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
     font-weight: 700;
   }
-  input:focus{
-    border-color: rgba(0,0,0,0.28);
-  }
-  input[type=range]{
-    padding:0;
-    border:0;
-    height:36px;
-    background: transparent;
-  }
-  input[type=range]:focus{
-    outline:none;
-  }
+  input:focus{ border-color: rgba(0,0,0,0.28); }
+  input[type=range]{ padding:0; border:0; height:36px; background: transparent; }
 
   #lettersGrid{
     display:grid;
@@ -298,9 +286,7 @@
     border-color: rgba(0,0,0,0.35);
     box-shadow: 0 6px 14px rgba(0,0,0,0.10);
   }
-  .letterChip.off{
-    opacity:0.45;
-  }
+  .letterChip.off{ opacity:0.45; }
 
   .hint{
     font-size:12px;
@@ -331,7 +317,6 @@
     color:#fff;
   }
 
-  /* Landscape: links en rechts, alles in beeld, geen scroll */
   @media (orientation: landscape){
     #settingsPanel{
       width:min(980px, calc(100vw - 24px));
@@ -349,9 +334,7 @@
       gap:12px;
       align-items:start;
     }
-    .settingsCol{
-      gap:10px;
-    }
+    .settingsCol{ gap:10px; }
     #lettersGrid{
       grid-template-columns: repeat(13, minmax(0, 1fr));
       gap:6px;
@@ -371,9 +354,7 @@
       border-radius:12px !important;
       font-size:15px;
     }
-    .btnRow{
-      margin-top:10px;
-    }
+    .btnRow{ margin-top:10px; }
     button{
       padding:9px 12px;
       font-size:14px;
@@ -389,7 +370,6 @@
     position: fixed;
     top: calc(12px + env(safe-area-inset-top));
     left: calc(12px + env(safe-area-inset-left));
-    right: auto;
     width: 48px;
     height: 48px;
     border-radius: 16px;
@@ -423,51 +403,20 @@
     display:none;
     pointer-events:none;
   }
-  #muteBtn.muted::before{
-    display:block;
-    transform: translate(-50%, -50%) rotate(45deg);
-  }
-  #muteBtn.muted::after{
-    display:block;
-    transform: translate(-50%, -50%) rotate(-45deg);
-  }
+  #muteBtn.muted::before{ display:block; transform: translate(-50%, -50%) rotate(45deg); }
+  #muteBtn.muted::after{ display:block; transform: translate(-50%, -50%) rotate(-45deg); }
 
-  #coachWrap{
-    position: fixed;
-    top: calc(12px + env(safe-area-inset-top));
-    right: calc(12px + env(safe-area-inset-right));
-    z-index: 9998;
-    pointer-events: auto;
-  }
-  #coach{
-    pointer-events: auto;
-  }
-
-  /* positioneer coureur altijd rechtsboven */
+  /* Coureur always top right */
   #coach{
     position: fixed !important;
     top: calc(12px + env(safe-area-inset-top)) !important;
     right: calc(12px + env(safe-area-inset-right)) !important;
     left: auto !important;
+    bottom: auto !important;
     z-index: 9998 !important;
     pointer-events: auto !important;
   }
-
-  /* COACH_RIGHT_FORCE */
-  #coachWrap{
-    position: fixed !important;
-    top: calc(12px + env(safe-area-inset-top)) !important;
-    right: calc(12px + env(safe-area-inset-right)) !important;
-    left: auto !important;
-    z-index: 9998 !important;
-    pointer-events: none !important;
-  }
-  #coach{
-    position: relative !important;
-    right: auto !important;
-    left: auto !important;
-    pointer-events: auto !important;
-  }
+  #coach *{ pointer-events: auto !important; }
 
   #toast{
     position: fixed;
@@ -485,24 +434,7 @@
     transition: opacity 180ms ease, transform 180ms ease;
     pointer-events: none;
   }
-  #toast.show{
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  /* COACH_RIGHT_FORCE_V23 */
-  #coach{
-    position: fixed !important;
-    top: calc(12px + env(safe-area-inset-top)) !important;
-    right: calc(12px + env(safe-area-inset-right)) !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 9998 !important;
-    pointer-events: auto !important;
-  }
-
-  #coachImg{ pointer-events: auto; }
-  #speech{ pointer-events: auto; }
+  #toast.show{ opacity: 1; transform: translateY(0); }
 
   #secretHotspot{
     position: fixed;
@@ -514,23 +446,12 @@
     background: rgba(0,0,0,0.0);
     pointer-events: auto;
   }
-
-  /* FIX v23.1: coach altijd klikbaar */
-  #coach{
-    pointer-events: auto !important;
-    position: fixed !important;
-    top: calc(12px + env(safe-area-inset-top)) !important;
-    right: calc(12px + env(safe-area-inset-right)) !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 9998 !important;
-  }
-  #coach *{ pointer-events: auto !important; }
-
 </style>
 </head>
 
 <body>
+
+<div id="safeProbe" aria-hidden="true"></div>
 
 <div id="coach" aria-hidden="true">
   <div id="speech">
@@ -550,7 +471,6 @@
 
     <div class="settingsColumns">
       <div class="settingsCol" id="settingsLeft">
-
         <div class="field">
           <label>Aangeboden letters</label>
           <div id="lettersGrid"></div>
@@ -564,11 +484,9 @@
           <div id="lastAudio" class="hint" style="margin-top:4px; font-weight:800; opacity:0.85;"></div>
           <div class="hint">Vink aan met welke letters je wilt spelen</div>
         </div>
-
       </div>
 
       <div class="settingsCol" id="settingsRight">
-
         <div class="field">
           <label for="speedSlider">Lettersnelheid</label>
           <input id="speedSlider" type="range" min="55" max="100" step="5" />
@@ -602,7 +520,6 @@
           </div>
           <div class="hint">Test werkt pas nadat je 1x het scherm hebt aangeraakt</div>
         </div>
-
       </div>
     </div>
 
@@ -620,10 +537,8 @@
 <div id="secretHotspot" aria-hidden="true"></div>
 
 <script>
-
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-
 const HAS_POINTER = ("PointerEvent" in window);
 
 function onPress(el, handler){
@@ -642,7 +557,6 @@ function onPress(el, handler){
     el.addEventListener("touchstart", wrap, opts);
     el.addEventListener("mousedown", wrap, opts);
   }
-
   el.addEventListener("contextmenu", (e)=> e.preventDefault());
 }
 
@@ -655,22 +569,44 @@ function toast(msg){
   toast._tm = setTimeout(()=> t.classList.remove("show"), 900);
 }
 
+/* zoom blokkeren, extra hard */
 canvas.style.touchAction = "none";
-
-/* extra zoom blokkade */
 document.addEventListener("dblclick", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
+
+const settingsOverlay = document.getElementById("settingsOverlay");
+
 document.addEventListener("touchstart", (e)=>{
   if(e.touches && e.touches.length > 1) e.preventDefault();
 }, { passive:false });
 
-let needCarResync = true;
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+  const now = Date.now();
+  if(settingsOverlay && settingsOverlay.style.display === "flex"){
+    lastTouchEnd = now;
+    return;
+  }
+  if(now - lastTouchEnd < 350) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive:false });
+
+document.addEventListener("touchmove", (e)=>{
+  if(settingsOverlay && settingsOverlay.style.display === "flex") return;
+  e.preventDefault();
+}, { passive:false });
+
+let needCarResyncX = true;
 
 function resize(){
   const vw = window.visualViewport ? Math.round(window.visualViewport.width) : innerWidth;
   const vh = window.visualViewport ? Math.round(window.visualViewport.height) : innerHeight;
   canvas.width = vw;
   canvas.height = vh;
-  needCarResync = true;
+  needCarResyncX = true;
 }
 addEventListener("resize", resize);
 if(window.visualViewport){
@@ -678,46 +614,11 @@ if(window.visualViewport){
 }
 resize();
 
-/* ANTI_ZOOM_GUARD */
-document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
-document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
-document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
-
-let lastTouchEnd = 0;
-document.addEventListener("touchend", (e)=>{
-  const now = Date.now();
-
-  if(settingsOverlay && settingsOverlay.style.display === "flex"){
-    lastTouchEnd = now;
-    return;
-  }
-
-  if(now - lastTouchEnd < 350){
-    e.preventDefault();
-  }
-  lastTouchEnd = now;
-}, { passive:false });
-
-/* blokkeer scroll en zoom, maar laat docent menu netjes werken */
-document.addEventListener("touchmove", (e)=>{
-  if(settingsOverlay && settingsOverlay.style.display === "flex") return;
-  if(e.touches && e.touches.length > 1) e.preventDefault();
-  else e.preventDefault();
-}, { passive:false });
-
-document.addEventListener("wheel", (e)=>{
-  if(e.ctrlKey) e.preventDefault();
-}, { passive:false });
-
 function loadImg(src){ const img = new Image(); img.src = src; return img; }
 const carStraight = loadImg("car_straight.png");
 const carLeft = loadImg("car_left.png");
 const carRight = loadImg("car_right.png");
 const treeImg = loadImg("tree.png");
-
-const coachNeutral = loadImg("coureur1.png");
-const coachHappy   = loadImg("coureur_blij.png");
-const coachSad     = loadImg("coureur_sip.png");
 
 const coachImgEl = document.getElementById("coachImg");
 const uiCoachLetter = document.getElementById("coachLetter");
@@ -726,7 +627,6 @@ const uiSpeech = document.getElementById("speech");
 const uiTagNew = document.getElementById("tagNew");
 const trophyEl = document.getElementById("trophy");
 
-const settingsOverlay = document.getElementById("settingsOverlay");
 const lettersGrid = document.getElementById("lettersGrid");
 const hitsInput = document.getElementById("hitsInput");
 const btnSave = document.getElementById("saveSettings");
@@ -734,10 +634,8 @@ const btnClose = document.getElementById("closeSettings");
 const btnAllOn = document.getElementById("btnAllOn");
 const btnAllOff = document.getElementById("btnAllOff");
 
-/* ===== Docent menu: open en sluit ===== */
 function openSettings(){
   if(!settingsOverlay) return;
-
   if(hitsInput) hitsInput.value = String(requiredHits || 5);
   if(typeof buildLettersGrid === "function") buildLettersGrid();
 
@@ -755,9 +653,8 @@ function openSettings(){
   settingsOverlay.style.display = "flex";
   const sh = document.getElementById("secretHotspot");
   if(sh) sh.style.pointerEvents = "none";
-  if(typeof toast === "function") toast("Docent menu");
+  toast("Docent menu");
 }
-
 function closeSettings(){
   if(!settingsOverlay) return;
   settingsOverlay.style.display = "none";
@@ -833,13 +730,10 @@ function updateMuteBtnUi(){
 
   const toggle = ()=>{
     unlockAudio();
-
     musicOn = !musicOn;
     try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
-
-    if(musicOn){ startBgm(); if(typeof toast==="function") toast("Muziek aan"); }
-    else { stopBgm(); if(typeof toast==="function") toast("Muziek uit"); }
-
+    if(musicOn){ startBgm(); toast("Muziek aan"); }
+    else { stopBgm(); toast("Muziek uit"); }
     updateMuteBtnUi();
   };
 
@@ -874,7 +768,6 @@ if(speechModeEl){
 function setSoundStatus(txt){
   if(soundStatus) soundStatus.textContent = txt || "";
 }
-
 function setLastAudio(txt){
   const el = document.getElementById("lastAudio");
   if(el) el.textContent = txt || "";
@@ -885,10 +778,8 @@ if(soundToggle){
   soundToggle.addEventListener("change", ()=>{
     soundOn = soundToggle.checked;
     try{ localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); }catch(e){}
-
-    if(soundOn){
-      setSoundStatus("Stemmen staan aan");
-    }else{
+    if(soundOn) setSoundStatus("Stemmen staan aan");
+    else{
       stopAllAudio();
       setSoundStatus("Stemmen staan uit");
     }
@@ -897,7 +788,6 @@ if(soundToggle){
 
 let audioUnlocked = false;
 let audioQueue = Promise.resolve();
-
 let queueToken = 0;
 let currentAudio = null;
 let lastSpokenAt = 0;
@@ -923,21 +813,16 @@ function ensureBgm(){
     bgm.volume = 0.22;
   }
 }
-
 function startBgm(){
   if(!musicOn) return;
   ensureBgm();
-
   try{
     if(bgm.paused){
       const p = bgm.play();
-      if(p && typeof p.catch === "function"){
-        p.catch(()=>{});
-      }
+      if(p && typeof p.catch === "function") p.catch(()=>{});
     }
   }catch(e){}
 }
-
 function stopBgm(){
   ensureBgm();
   try{
@@ -945,7 +830,6 @@ function stopBgm(){
     bgm.currentTime = 0;
   }catch(e){}
 }
-
 function forceMusicOff(){
   if(!musicOn) return;
   musicOn = false;
@@ -953,11 +837,7 @@ function forceMusicOff(){
   stopBgm();
   updateMuteBtnUi();
 }
-
-document.addEventListener("visibilitychange", ()=>{
-  if(document.hidden) forceMusicOff();
-});
-
+document.addEventListener("visibilitychange", ()=>{ if(document.hidden) forceMusicOff(); });
 addEventListener("pagehide", ()=> forceMusicOff());
 
 function unlockAudio(){
@@ -972,19 +852,19 @@ function beep(freq = 740, ms = 180, vol = 0.12){
   try{
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if(!Ctx) return Promise.resolve();
-    const ctx = new Ctx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
+    const ctxA = new Ctx();
+    const o = ctxA.createOscillator();
+    const g = ctxA.createGain();
     o.type = "sine";
     o.frequency.value = freq;
     g.gain.value = vol;
     o.connect(g);
-    g.connect(ctx.destination);
+    g.connect(ctxA.destination);
     o.start();
     return new Promise((resolve)=>{
       setTimeout(()=>{
         o.stop();
-        ctx.close().catch(()=>{});
+        ctxA.close().catch(()=>{});
         resolve();
       }, ms);
     });
@@ -995,7 +875,6 @@ function beep(freq = 740, ms = 180, vol = 0.12){
 
 function playClip(src, vol = 1.0){
   const myToken = queueToken;
-
   return new Promise((resolve)=>{
     if(!soundOn){ resolve(); return; }
     if(myToken !== queueToken){ resolve(); return; }
@@ -1003,7 +882,6 @@ function playClip(src, vol = 1.0){
     setLastAudio("Laatste audio: " + src);
     const a = new Audio(src);
     currentAudio = a;
-
     a.preload = "auto";
     a.playsInline = true;
     a.volume = vol;
@@ -1014,7 +892,6 @@ function playClip(src, vol = 1.0){
       if(currentAudio === a) currentAudio = null;
       resolve();
     };
-
     const onErr = ()=>{
       setSoundStatus("Bestand niet gevonden, check pad");
       setLastAudio("Niet gevonden: " + src);
@@ -1044,10 +921,7 @@ function enqueue(src, vol = 1.0){
 }
 
 function randFrom(list){ return list[Math.floor(Math.random() * list.length)]; }
-
-function letterAudio(letter){
-  return `audio/letters/letter_${letter}.mp3`;
-}
+function letterAudio(letter){ return `audio/letters/letter_${letter}.mp3`; }
 
 const OPDRACHT = [
   "audio/opdracht/opdracht_01.mp3",
@@ -1056,20 +930,17 @@ const OPDRACHT = [
   "audio/opdracht/opdracht_04.mp3",
   "audio/opdracht/opdracht_05.mp3"
 ];
-
 const GOED = [
   "audio/goed/goed_01.mp3",
   "audio/goed/goed_02.mp3",
   "audio/goed/goed_03.mp3",
   "audio/goed/goed_04.mp3"
 ];
-
 const FOUT = [
   "audio/fout/fout_01.mp3",
   "audio/fout/fout_02.mp3",
   "audio/fout/fout_03.mp3"
 ];
-
 const LEVEL = [
   "audio/level/level_01.mp3",
   "audio/level/level_02.mp3",
@@ -1106,25 +977,18 @@ function speakOpdracht(letter, attemptNumber = 1){
   enqueue(randFrom(OPDRACHT), 1.0);
   return enqueue(letterAudio(letter), 1.0);
 }
-
 function speakGoed(letter){
   if(!soundOn) return;
-
   stopAllAudio();
-
   const now = performance.now();
   if(now - lastSpokenAt < 160) return;
   lastSpokenAt = now;
-
   enqueue(randFrom(GOED), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
-
 function speakFout(letter){
   if(!soundOn) return;
-
   stopAllAudio();
-
   const now = performance.now();
   if(now - lastSpokenAt < 180) return;
   lastSpokenAt = now;
@@ -1134,12 +998,10 @@ function speakFout(letter){
     enqueue(letterAudio(letter), 1.0);
     return;
   }
-
   enqueue(randFrom(FOUT), 1.0);
   enqueue(randFrom(OPDRACHT), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
-
 function speakLevel(){
   if(!soundOn) return Promise.resolve();
   stopAllAudio();
@@ -1150,10 +1012,8 @@ if(btnTestSound){
   btnTestSound.addEventListener("click", async ()=>{
     unlockAudio();
     if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
-
     stopAllAudio();
     await beep(820, 160, 0.14);
-
     stopAllAudio();
     speakOpdracht(targetLetter, 1);
     enqueue(randFrom(GOED), 1.0);
@@ -1164,16 +1024,13 @@ if(btnTestSound){
 const STORAGE_KEY = "letter_race_settings_v3";
 
 function normalizeLetters(str){
-  const clean = (str || "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "");
+  const clean = (str || "").toLowerCase().replace(/[^a-z]/g, "");
   const uniq = [];
   for(const ch of clean){
     if(!uniq.includes(ch)) uniq.push(ch);
   }
   return uniq;
 }
-
 function loadSettings(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -1183,14 +1040,21 @@ function loadSettings(){
     return null;
   }
 }
-
 function saveSettings(obj){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-  }catch(e){}
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }catch(e){}
 }
 
 const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
+
+/* standaard alles aan, behalve c, q, x, y */
+const FORCE_OFF_LETTERS = ["c","q","x","y"];
+const MIGRATION_CQXY_KEY = "letter_race_migrate_cqxy_off_v1";
+
+let allowedLetters = DEFAULT_POOL.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+let requiredHits = 5;
+
+/* iets rustiger als standaard */
+let speedFactor = 0.85;
 
 const letterChipRefs = [];
 
@@ -1200,7 +1064,6 @@ function setAllLetters(checked){
     ref.sync();
   }
 }
-
 if(btnAllOn) onPress(btnAllOn, ()=> setAllLetters(true));
 if(btnAllOff) onPress(btnAllOff, ()=> setAllLetters(false));
 
@@ -1244,7 +1107,6 @@ function buildLettersGrid(){
     lab.appendChild(cb);
     lab.appendChild(span);
     lettersGrid.appendChild(lab);
-
     sync();
   }
 }
@@ -1259,15 +1121,7 @@ function getCheckedLetters(){
   return out.length ? out : ["a"];
 }
 
-const FORCE_OFF_LETTERS = ["c","x","y"];
-const MIGRATION_CXY_KEY = "letter_race_migrate_cxy_off_v1";
-
-let allowedLetters = DEFAULT_POOL.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
-let requiredHits = 5;
-
-/* iets rustiger als standaard */
-let speedFactor = 0.85;
-
+/* snelheid */
 const speedSlider = document.getElementById("speedSlider");
 const speedHint = document.getElementById("speedHint");
 function updateSpeedUi(){
@@ -1284,6 +1138,7 @@ if(speedSlider){
   });
 }
 
+/* laad opgeslagen settings, daarna 1x migratie om cqxy standaard uit te zetten */
 const saved = loadSettings();
 if(saved){
   const maybeLetters = normalizeLetters(saved.letters || "");
@@ -1299,8 +1154,9 @@ if(saved){
   }
 }
 
+/* migratie: bestaande spelers krijgen cqxy eenmalig uit, maar kunnen het daarna weer aanzetten */
 try{
-  const migrated = localStorage.getItem(MIGRATION_CXY_KEY) === "1";
+  const migrated = localStorage.getItem(MIGRATION_CQXY_KEY) === "1";
   if(!migrated){
     const before = allowedLetters.join("");
     allowedLetters = allowedLetters.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
@@ -1309,13 +1165,14 @@ try{
     if(before !== after){
       saveSettings({ letters: after, requiredHits, speedFactor });
     }
-    localStorage.setItem(MIGRATION_CXY_KEY, "1");
+    localStorage.setItem(MIGRATION_CQXY_KEY, "1");
   }
 }catch(e){
   allowedLetters = allowedLetters.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
   if(!allowedLetters.length) allowedLetters = ["a"];
 }
 
+/* doelletter */
 let targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
 let remainingHits = requiredHits;
 
@@ -1357,10 +1214,8 @@ function updateProgressDots(){
 
 /* ===== Coureur mood ===== */
 let coachMoodTimer = 0;
-
 function setCoachMood(mood, frames = 50){
   coachMoodTimer = frames;
-
   if(mood === "happy") coachImgEl.style.backgroundImage = "url(coureur_blij.png)";
   else if(mood === "sad") coachImgEl.style.backgroundImage = "url(coureur_sip.png)";
   else if(mood === "trophy") coachImgEl.style.backgroundImage = "url(coureur_beker.png)";
@@ -1382,8 +1237,8 @@ function spawnConfetti(){
     const delay = Math.random() * 220;
     const w = 8 + Math.random() * 10;
     const h = 12 + Math.random() * 14;
-
     const hue = Math.floor(Math.random() * 360);
+
     p.style.left = left + "vw";
     p.style.width = w + "px";
     p.style.height = h + "px";
@@ -1486,21 +1341,17 @@ function playTrophyAnimation(onDone){
 
 async function onLevelCompleted(){
   intermission = true;
-
   items.length = 0;
   spawnTimer = 0;
 
   const levelAudio = speakLevel();
-
   spawnConfetti();
   setCoachMood("trophy", 120);
 
   playTrophyAnimation(async ()=>{
     try{ await Promise.resolve(levelAudio); }catch(e){}
-
     setCoachMood("neutral", 0);
     try{ await Promise.resolve(nextTargetLetter()); }catch(e){}
-
     intermission = false;
   });
 }
@@ -1545,8 +1396,6 @@ function disarmLongPress(){
   }
 }
 
-const secretHotspot = document.getElementById("secretHotspot");
-
 function bindSecretTriggers(el){
   if(!el) return;
 
@@ -1568,7 +1417,7 @@ function bindSecretTriggers(el){
 
 bindSecretTriggers(document.getElementById("coach"));
 bindSecretTriggers(coachImgEl);
-bindSecretTriggers(secretHotspot);
+bindSecretTriggers(document.getElementById("secretHotspot"));
 
 btnClose.addEventListener("click", ()=> closeSettings());
 
@@ -1601,7 +1450,7 @@ let roadScroll = 0;
 
 const WORLD_TEMPO = 1.0;
 
-/* start iets trager */
+/* start trager */
 let letterTempo = 1.05;
 const LETTER_TEMPO_MIN = 1.05;
 const LETTER_TEMPO_MAX = 3.00;
@@ -1622,7 +1471,6 @@ const car = {
   scale: 1.20
 };
 
-/* letters */
 const items = [];
 const MAX_ITEMS = 2;
 const SPAWN_FRAMES_BASE = 170;
@@ -1648,29 +1496,29 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* auto altijd onderaan zichtbaar */
+/* auto onderaan, altijd in beeld */
 const CAR_BOTTOM_GAP = 18;
-
+const safeProbe = document.getElementById("safeProbe");
+function safeBottomPx(){
+  return safeProbe ? safeProbe.offsetHeight : 0;
+}
 function calcCarSize(){
   const base = Math.min(canvas.width, canvas.height);
   const w = Math.max(176, base * 0.300) * car.scale;
   const h = w * 0.62;
   return { w, h };
 }
-
-function getSafeBottom(){
-  const v = getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom");
-  return parseFloat(v) || 0;
-}
-
-function syncCarBottom(){
-  const sb = getSafeBottom();
-  const { h } = calcCarSize();
+function updateCarFrame(){
+  const sb = safeBottomPx();
+  const { w, h } = calcCarSize();
+  car.w = w;
+  car.h = h;
   car.y = canvas.height - sb - CAR_BOTTOM_GAP - (h / 2);
-}
 
-if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", ()=>{ needCarResync = true; });
+  if(needCarResyncX){
+    car.x = laneX(state.lane, car.y);
+    needCarResyncX = false;
+  }
 }
 
 /* bomen */
@@ -1688,12 +1536,7 @@ function spawnTree(){
   if(trees.length >= MAX_TREES) return;
   const side = Math.random() < 0.5 ? "left" : "right";
   const sizeSeed = 0.88 + Math.random() * 0.28;
-
-  trees.push({
-    side,
-    baseY: -460,
-    sizeSeed
-  });
+  trees.push({ side, baseY: -460, sizeSeed });
 }
 
 function treeSize(tr){
@@ -1726,12 +1569,10 @@ function updateTrees(dt){
   for(let i = trees.length - 1; i >= 0; i--){
     const tr = trees[i];
     const t = clamp(tr.baseY / canvas.height, 0, 1);
-
     const curve = 2.10;
     const accel = lerp(TREE_ACCEL_START, TREE_ACCEL_END, t ** curve);
 
     let dy = (accel * WORLD_TEMPO) * dt * 3.0;
-
     const maxStep = 190 * dt * WORLD_TEMPO;
     dy = Math.min(dy, maxStep);
 
@@ -1832,9 +1673,7 @@ function drawRoad(){
   const H = canvas.height;
   const projScale = 0.0042;
 
-  function yFromS(s){
-    return H / (1 + s * projScale);
-  }
+  function yFromS(s){ return H / (1 + s * projScale); }
 
   const periodS = 260;
   const dashS = 105;
@@ -1874,16 +1713,14 @@ function targetBgRgba(){
   const alpha = 0.95;
 
   const steps = Math.min(Math.max(requiredHits - 1, 0), 3);
-  if(steps === 0){
-    return `rgba(${yellow.r},${yellow.g},${yellow.b},${alpha})`;
-  }
+  if(steps === 0) return `rgba(${yellow.r},${yellow.g},${yellow.b},${alpha})`;
 
   const stage = clamp(requiredHits - remainingHits, 0, steps);
-  const t = stage / steps;
+  const tt = stage / steps;
 
-  const r = mix(blue.r, yellow.r, t);
-  const g = mix(blue.g, yellow.g, t);
-  const b = mix(blue.b, yellow.b, t);
+  const r = mix(blue.r, yellow.r, tt);
+  const g = mix(blue.g, yellow.g, tt);
+  const b = mix(blue.b, yellow.b, tt);
 
   return `rgba(${r},${g},${b},${alpha})`;
 }
@@ -1922,13 +1759,7 @@ function spawnLetter(){
   const isTarget = Math.random() < 0.33;
   const letter = isTarget ? targetLetter : pickNonTargetLetter();
 
-  items.push({
-    lane,
-    y: -70,
-    letter,
-    isTarget,
-    vy: 6.0
-  });
+  items.push({ lane, y: -70, letter, isTarget, vy: 6.0 });
 }
 
 let spawnTimer = 0;
@@ -1941,13 +1772,8 @@ function chooseCarSprite(){
 }
 
 function drawCar(){
-  const base = Math.min(canvas.width, canvas.height);
-  const w = Math.max(176, base * 0.300) * car.scale;
-  const h = w * 0.62;
-
-  car.w = w;
-  car.h = h;
-
+  const w = car.w;
+  const h = car.h;
   const img = chooseCarSprite();
 
   ctx.save();
@@ -1984,7 +1810,7 @@ function nextTargetLetter(){
   let next = targetLetter;
   if(allowedLetters.length === 1){
     next = allowedLetters[0];
-  } else {
+  }else{
     let guard = 0;
     while(next === targetLetter && guard < 30){
       next = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
@@ -2000,6 +1826,8 @@ function nextTargetLetter(){
 
 /* update en draw */
 function update(dt){
+  updateCarFrame();
+
   if(coachMoodTimer > 0){
     coachMoodTimer -= dt;
     if(coachMoodTimer <= 0){
@@ -2014,7 +1842,6 @@ function update(dt){
   }
 
   energy = Math.max(0, energy - 0.018 * dt);
-
   roadScroll += (9.2 * WORLD_TEMPO) * dt;
 
   const targetX = laneX(state.lane, car.y);
@@ -2047,13 +1874,12 @@ function update(dt){
         stopAllAudio();
         speakGoed(targetLetter);
 
-        if(remainingHits <= 0 && !trophyAnimating){
-          onLevelCompleted();
-        }
-      } else {
+        if(remainingHits <= 0 && !trophyAnimating) onLevelCompleted();
+      }else{
         setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
         speakFout(targetLetter);
+
         if(remainingHits < requiredHits){
           remainingHits = Math.min(requiredHits, remainingHits + 1);
           updateProgressDots();
@@ -2074,9 +1900,9 @@ function update(dt){
 }
 
 function draw(){
+  updateCarFrame();
   drawGrass();
   drawRoad();
-
   for(const it of items) drawItem(it);
   drawCar();
   drawTrees();
@@ -2086,25 +1912,21 @@ function loop(now){
   const dt = Math.min(3, (now - state.lastTime) / (1000/60));
   state.lastTime = now;
 
-  if(needCarResync){
-    syncCarBottom();
-    needCarResync = false;
-  }
-
   if(energy > 0 && settingsOverlay.style.display !== "flex" && !trophyAnimating) update(dt);
   draw();
-
   requestAnimationFrame(loop);
 }
 
-/* KEYBOARD_LANES_V23 */
+/* besturing */
 addEventListener("keydown", (e)=>{
   if(e.key === "ArrowLeft"){
     e.preventDefault();
     state.lane = Math.max(0, state.lane - 1);
+    needCarResyncX = true;
   }else if(e.key === "ArrowRight"){
     e.preventDefault();
     state.lane = Math.min(2, state.lane + 1);
+    needCarResyncX = true;
   }
 });
 
@@ -2118,8 +1940,10 @@ canvas.addEventListener("pointerdown", (e)=>{
   if(x < canvas.width / 3) state.lane = 0;
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
+  needCarResyncX = true;
 });
 
+/* context menu blokkeren op coureur */
 document.addEventListener("contextmenu", (e)=>{
   const coachImg = document.getElementById("coachImg");
   if(coachImg && (e.target === coachImg || coachImg.contains(e.target))) e.preventDefault();
@@ -2130,7 +1954,6 @@ updateCoachLetter(true);
 stopAllAudio();
 speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
-
 </script>
 
 </body>
