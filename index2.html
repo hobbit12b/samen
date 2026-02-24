@@ -19,7 +19,7 @@
   }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
 
-  /* safe area probe (leest env waardes betrouwbaar uit via offsetHeight) */
+  /* leest env(safe-area-inset-bottom) uit via offsetHeight */
   #safeProbe{
     position:fixed;
     left:0;
@@ -32,14 +32,16 @@
 
   /* Coureur rechtsboven */
   #coach{
-    position:absolute;
-    position: relative;
-    top:10px;
-    right:10px;
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    bottom: auto !important;
+    z-index: 9998 !important;
     display:flex;
     align-items:flex-start;
     gap:10px;
-    z-index:10;
+    pointer-events: auto !important;
   }
   #coachImg{
     width:min(180px, 26vw);
@@ -57,7 +59,6 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Ballon met letter en voortgang */
   #speech{
     position:relative;
     margin-top:8px;
@@ -69,6 +70,7 @@
     min-width:84px;
     text-align:center;
     transform-origin: 85% 30%;
+    pointer-events:auto;
   }
   #speech::after{
     content:"";
@@ -189,7 +191,7 @@
     100% { transform: translateY(120vh) rotate(520deg); opacity:0; }
   }
 
-  /* Verborgen menu */
+  /* Menu */
   #settingsOverlay{
     position:fixed;
     inset:0;
@@ -228,23 +230,11 @@
   }
 
   .settingsColumns{ display:block; }
-  .settingsCol{
-    display:flex;
-    flex-direction:column;
-    gap:12px;
-  }
+  .settingsCol{ display:flex; flex-direction:column; gap:12px; }
 
-  .field{
-    display:grid;
-    gap:6px;
-    margin:0;
-  }
+  .field{ display:grid; gap:6px; margin:0; }
 
-  label{
-    font-size:13px;
-    color:#222;
-    font-weight:700;
-  }
+  label{ font-size:13px; color:#222; font-weight:700; }
   input{
     width:100%;
     box-sizing:border-box;
@@ -288,11 +278,8 @@
   }
   .letterChip.off{ opacity:0.45; }
 
-  .hint{
-    font-size:12px;
-    color: rgba(0,0,0,0.65);
-    line-height:1.35;
-  }
+  .hint{ font-size:12px; color: rgba(0,0,0,0.65); line-height:1.35; }
+
   .btnRow{
     display:flex;
     gap:10px;
@@ -308,14 +295,8 @@
     cursor:pointer;
     font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
   }
-  .btnGhost{
-    background: rgba(0,0,0,0.08);
-    color:#111;
-  }
-  .btnPrimary{
-    background:#111;
-    color:#fff;
-  }
+  .btnGhost{ background: rgba(0,0,0,0.08); color:#111; }
+  .btnPrimary{ background:#111; color:#fff; }
 
   @media (orientation: landscape){
     #settingsPanel{
@@ -324,10 +305,7 @@
       overflow:hidden;
       padding:12px 12px 10px 12px;
     }
-    #settingsPanel h2{
-      font-size:16px;
-      margin:0 0 8px 0;
-    }
+    #settingsPanel h2{ font-size:16px; margin:0 0 8px 0; }
     .settingsColumns{
       display:grid;
       grid-template-columns: 1.25fr 0.85fr;
@@ -335,35 +313,14 @@
       align-items:start;
     }
     .settingsCol{ gap:10px; }
-    #lettersGrid{
-      grid-template-columns: repeat(13, minmax(0, 1fr));
-      gap:6px;
-    }
-    .letterChip{
-      padding:7px 0;
-      border-radius:10px;
-    }
+    #lettersGrid{ grid-template-columns: repeat(13, minmax(0, 1fr)); gap:6px; }
+    .letterChip{ padding:7px 0; border-radius:10px; }
     label{ font-size:12px; }
-    input{
-      padding:8px 10px;
-      font-size:15px;
-      border-radius:12px;
-    }
-    select{
-      padding:10px 10px !important;
-      border-radius:12px !important;
-      font-size:15px;
-    }
+    input{ padding:8px 10px; font-size:15px; border-radius:12px; }
+    select{ padding:10px 10px !important; border-radius:12px !important; font-size:15px; }
     .btnRow{ margin-top:10px; }
-    button{
-      padding:9px 12px;
-      font-size:14px;
-      border-radius:14px;
-    }
-    .hint{
-      font-size:11px;
-      line-height:1.25;
-    }
+    button{ padding:9px 12px; font-size:14px; border-radius:14px; }
+    .hint{ font-size:11px; line-height:1.25; }
   }
 
   #muteBtn{
@@ -406,18 +363,6 @@
   #muteBtn.muted::before{ display:block; transform: translate(-50%, -50%) rotate(45deg); }
   #muteBtn.muted::after{ display:block; transform: translate(-50%, -50%) rotate(-45deg); }
 
-  /* Coureur always top right */
-  #coach{
-    position: fixed !important;
-    top: calc(12px + env(safe-area-inset-top)) !important;
-    right: calc(12px + env(safe-area-inset-right)) !important;
-    left: auto !important;
-    bottom: auto !important;
-    z-index: 9998 !important;
-    pointer-events: auto !important;
-  }
-  #coach *{ pointer-events: auto !important; }
-
   #toast{
     position: fixed;
     top: calc(68px + env(safe-area-inset-top));
@@ -450,7 +395,6 @@
 </head>
 
 <body>
-
 <div id="safeProbe" aria-hidden="true"></div>
 
 <div id="coach" aria-hidden="true">
@@ -470,7 +414,7 @@
     <h2>Instellingen</h2>
 
     <div class="settingsColumns">
-      <div class="settingsCol" id="settingsLeft">
+      <div class="settingsCol">
         <div class="field">
           <label>Aangeboden letters</label>
           <div id="lettersGrid"></div>
@@ -486,7 +430,7 @@
         </div>
       </div>
 
-      <div class="settingsCol" id="settingsRight">
+      <div class="settingsCol">
         <div class="field">
           <label for="speedSlider">Lettersnelheid</label>
           <input id="speedSlider" type="range" min="55" max="100" step="5" />
@@ -544,16 +488,13 @@ const HAS_POINTER = ("PointerEvent" in window);
 function onPress(el, handler){
   if(!el) return;
   const opts = { passive:false };
-
   const wrap = (e)=>{
     if(e && e.cancelable) e.preventDefault();
     if(e && typeof e.stopPropagation === "function") e.stopPropagation();
     handler(e);
   };
-
-  if(HAS_POINTER){
-    el.addEventListener("pointerdown", wrap, opts);
-  }else{
+  if(HAS_POINTER) el.addEventListener("pointerdown", wrap, opts);
+  else{
     el.addEventListener("touchstart", wrap, opts);
     el.addEventListener("mousedown", wrap, opts);
   }
@@ -569,7 +510,7 @@ function toast(msg){
   toast._tm = setTimeout(()=> t.classList.remove("show"), 900);
 }
 
-/* zoom blokkeren, extra hard */
+/* zoom blokkeren */
 canvas.style.touchAction = "none";
 document.addEventListener("dblclick", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
@@ -609,9 +550,7 @@ function resize(){
   needCarResyncX = true;
 }
 addEventListener("resize", resize);
-if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", resize);
-}
+if(window.visualViewport) window.visualViewport.addEventListener("resize", resize);
 resize();
 
 function loadImg(src){ const img = new Image(); img.src = src; return img; }
@@ -634,15 +573,14 @@ const btnClose = document.getElementById("closeSettings");
 const btnAllOn = document.getElementById("btnAllOn");
 const btnAllOff = document.getElementById("btnAllOff");
 
+/* menu open en dicht */
 function openSettings(){
   if(!settingsOverlay) return;
   if(hitsInput) hitsInput.value = String(requiredHits || 5);
   if(typeof buildLettersGrid === "function") buildLettersGrid();
 
   if(soundToggle) soundToggle.checked = !!soundOn;
-  if(typeof setSoundStatus === "function"){
-    setSoundStatus(soundOn ? "Stemmen staan aan" : "Stemmen staan uit");
-  }
+  setSoundStatus(soundOn ? "Stemmen staan aan" : "Stemmen staan uit");
   if(speechModeEl) speechModeEl.value = speechMode;
 
   if(speedSlider){
@@ -779,10 +717,7 @@ if(soundToggle){
     soundOn = soundToggle.checked;
     try{ localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); }catch(e){}
     if(soundOn) setSoundStatus("Stemmen staan aan");
-    else{
-      stopAllAudio();
-      setSoundStatus("Stemmen staan uit");
-    }
+    else setSoundStatus("Stemmen staan uit");
   });
 }
 
@@ -947,57 +882,24 @@ const LEVEL = [
   "audio/level/level_03.mp3"
 ];
 
-const PREFIX_EN_NU_DE = "audio/prefix/en_nu_de.mp3";
-const TEL = {
-  2: "audio/tel/tel_2.mp3",
-  3: "audio/tel/tel_3.mp3",
-  4: "audio/tel/tel_4.mp3",
-  5: "audio/tel/tel_5.mp3"
-};
-
-function speakOpdracht(letter, attemptNumber = 1){
+function speakOpdracht(letter){
   if(!soundOn) return Promise.resolve();
-
   const now = performance.now();
   if(now - lastSpokenAt < 260) return Promise.resolve();
   lastSpokenAt = now;
-
   stopAllAudio();
-
-  if(speechMode === "calm"){
-    enqueue(randFrom(OPDRACHT), 1.0);
-    return enqueue(letterAudio(letter), 1.0);
-  }
-
-  if(attemptNumber >= 2 && attemptNumber <= 5){
-    enqueue(PREFIX_EN_NU_DE, 1.0);
-    enqueue(TEL[attemptNumber], 1.0);
-  }
-
   enqueue(randFrom(OPDRACHT), 1.0);
   return enqueue(letterAudio(letter), 1.0);
 }
 function speakGoed(letter){
   if(!soundOn) return;
   stopAllAudio();
-  const now = performance.now();
-  if(now - lastSpokenAt < 160) return;
-  lastSpokenAt = now;
   enqueue(randFrom(GOED), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
 function speakFout(letter){
   if(!soundOn) return;
   stopAllAudio();
-  const now = performance.now();
-  if(now - lastSpokenAt < 180) return;
-  lastSpokenAt = now;
-
-  if(speechMode === "calm"){
-    enqueue(randFrom(OPDRACHT), 1.0);
-    enqueue(letterAudio(letter), 1.0);
-    return;
-  }
   enqueue(randFrom(FOUT), 1.0);
   enqueue(randFrom(OPDRACHT), 1.0);
   enqueue(letterAudio(letter), 1.0);
@@ -1015,20 +917,17 @@ if(btnTestSound){
     stopAllAudio();
     await beep(820, 160, 0.14);
     stopAllAudio();
-    speakOpdracht(targetLetter, 1);
+    speakOpdracht(targetLetter);
     enqueue(randFrom(GOED), 1.0);
   });
 }
 
-/* ===== Instelbare letters en doelherhaling ===== */
+/* ===== Letters instellingen ===== */
 const STORAGE_KEY = "letter_race_settings_v3";
-
 function normalizeLetters(str){
   const clean = (str || "").toLowerCase().replace(/[^a-z]/g, "");
   const uniq = [];
-  for(const ch of clean){
-    if(!uniq.includes(ch)) uniq.push(ch);
-  }
+  for(const ch of clean) if(!uniq.includes(ch)) uniq.push(ch);
   return uniq;
 }
 function loadSettings(){
@@ -1036,9 +935,7 @@ function loadSettings(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return null;
     return JSON.parse(raw);
-  }catch(e){
-    return null;
-  }
+  }catch(e){ return null; }
 }
 function saveSettings(obj){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }catch(e){}
@@ -1046,14 +943,14 @@ function saveSettings(obj){
 
 const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
 
-/* standaard alles aan, behalve c, q, x, y */
-const FORCE_OFF_LETTERS = ["c","q","x","y"];
-const MIGRATION_CQXY_KEY = "letter_race_migrate_cqxy_off_v1";
+// nieuwe standaard selectie
+const DEFAULT_SELECTED = ["b","g","h","k","l","m","s","v","w"];
+const MIGRATION_SET_DEFAULT_KEY = "letter_race_migrate_default_bghklmsvw_v1";
 
-let allowedLetters = DEFAULT_POOL.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+let allowedLetters = DEFAULT_SELECTED.slice();
 let requiredHits = 5;
 
-/* iets rustiger als standaard */
+// standaard iets rustiger
 let speedFactor = 0.85;
 
 const letterChipRefs = [];
@@ -1115,13 +1012,11 @@ function getCheckedLetters(){
   if(!lettersGrid) return DEFAULT_POOL.slice();
   const cbs = lettersGrid.querySelectorAll("input[type=checkbox]");
   const out = [];
-  for(const cb of cbs){
-    if(cb.checked) out.push(cb.value);
-  }
+  for(const cb of cbs) if(cb.checked) out.push(cb.value);
   return out.length ? out : ["a"];
 }
 
-/* snelheid */
+/* snelheid UI */
 const speedSlider = document.getElementById("speedSlider");
 const speedHint = document.getElementById("speedHint");
 function updateSpeedUi(){
@@ -1138,7 +1033,7 @@ if(speedSlider){
   });
 }
 
-/* laad opgeslagen settings, daarna 1x migratie om cqxy standaard uit te zetten */
+/* laad opgeslagen settings */
 const saved = loadSettings();
 if(saved){
   const maybeLetters = normalizeLetters(saved.letters || "");
@@ -1154,21 +1049,17 @@ if(saved){
   }
 }
 
-/* migratie: bestaande spelers krijgen cqxy eenmalig uit, maar kunnen het daarna weer aanzetten */
+/* migratie: zet 1 keer de nieuwe standaard selectie, maar daarna mag je weer zelf kiezen */
 try{
-  const migrated = localStorage.getItem(MIGRATION_CQXY_KEY) === "1";
+  const migrated = localStorage.getItem(MIGRATION_SET_DEFAULT_KEY) === "1";
   if(!migrated){
-    const before = allowedLetters.join("");
-    allowedLetters = allowedLetters.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+    allowedLetters = DEFAULT_SELECTED.slice();
     if(!allowedLetters.length) allowedLetters = ["a"];
-    const after = allowedLetters.join("");
-    if(before !== after){
-      saveSettings({ letters: after, requiredHits, speedFactor });
-    }
-    localStorage.setItem(MIGRATION_CQXY_KEY, "1");
+    saveSettings({ letters: allowedLetters.join(""), requiredHits, speedFactor });
+    localStorage.setItem(MIGRATION_SET_DEFAULT_KEY, "1");
   }
 }catch(e){
-  allowedLetters = allowedLetters.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+  allowedLetters = DEFAULT_SELECTED.slice();
   if(!allowedLetters.length) allowedLetters = ["a"];
 }
 
@@ -1180,13 +1071,10 @@ function flashNewLetter(){
   uiSpeech.classList.remove("change");
   uiCoachLetter.classList.remove("change");
   uiTagNew.classList.remove("show");
-
   void uiSpeech.offsetWidth;
-
   uiSpeech.classList.add("change");
   uiCoachLetter.classList.add("change");
   uiTagNew.classList.add("show");
-
   setTimeout(()=>{
     uiSpeech.classList.remove("change");
     uiCoachLetter.classList.remove("change");
@@ -1212,17 +1100,10 @@ function updateProgressDots(){
   }
 }
 
-/* ===== Coureur mood ===== */
-let coachMoodTimer = 0;
-function setCoachMood(mood, frames = 50){
-  coachMoodTimer = frames;
-  if(mood === "happy") coachImgEl.style.backgroundImage = "url(coureur_blij.png)";
-  else if(mood === "sad") coachImgEl.style.backgroundImage = "url(coureur_sip.png)";
-  else if(mood === "trophy") coachImgEl.style.backgroundImage = "url(coureur_beker.png)";
-  else coachImgEl.style.backgroundImage = "url(coureur1.png)";
-}
+/* confetti en trofee, compact gehouden */
+let trophyAnimating = false;
+let intermission = false;
 
-/* ===== Confetti ===== */
 function spawnConfetti(){
   const confettiEl = document.getElementById("confetti");
   confettiEl.innerHTML = "";
@@ -1232,19 +1113,11 @@ function spawnConfetti(){
   for(let i=0; i<n; i++){
     const p = document.createElement("div");
     p.className = "confettiPiece";
-
-    const left = Math.random() * 100;
-    const delay = Math.random() * 220;
-    const w = 8 + Math.random() * 10;
-    const h = 12 + Math.random() * 14;
-    const hue = Math.floor(Math.random() * 360);
-
-    p.style.left = left + "vw";
-    p.style.width = w + "px";
-    p.style.height = h + "px";
-    p.style.background = `hsl(${hue} 90% 60%)`;
-    p.style.animationDelay = delay + "ms";
-
+    p.style.left = (Math.random() * 100) + "vw";
+    p.style.width = (8 + Math.random() * 10) + "px";
+    p.style.height = (12 + Math.random() * 14) + "px";
+    p.style.background = `hsl(${Math.floor(Math.random() * 360)} 90% 60%)`;
+    p.style.animationDelay = (Math.random() * 220) + "ms";
     confettiEl.appendChild(p);
   }
 
@@ -1254,109 +1127,19 @@ function spawnConfetti(){
   }, 1250);
 }
 
-/* ===== Trofee animatie ===== */
-let trophyAnimating = false;
-let intermission = false;
-
-function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
-function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
-
-function waitForImage(el){
-  return new Promise((resolve)=>{
-    if(el && el.complete && el.naturalWidth) return resolve();
-    const done = ()=> resolve();
-    el.addEventListener("load", done, { once:true });
-    el.addEventListener("error", done, { once:true });
-  });
-}
-
-function setTrophyPose(x, y, s, a, glow=0){
-  trophyEl.style.opacity = String(a);
-  trophyEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${s})`;
-  trophyEl.style.filter = `drop-shadow(0 18px 30px rgba(0,0,0,0.42)) drop-shadow(0 0 ${glow}px rgba(255,220,120,0.85))`;
-}
-
-function playTrophyAnimation(onDone){
-  trophyAnimating = true;
-  trophyEl.style.display = "block";
-
-  const startX = innerWidth * 0.5;
-  const startY = innerHeight * 0.46;
-
-  const r = coachImgEl.getBoundingClientRect();
-  const endX = r.left + r.width * 0.55;
-  const endY = r.top + r.height * 0.50;
-
-  const phase0 = 60;
-  const phase1 = 520;
-  const phase2 = 980;
-  const startTime = performance.now();
-
-  setTrophyPose(startX, startY, 1.60, 0.0, 0);
-
-  waitForImage(trophyEl).then(()=>{
-
-    function tick(now){
-      const elapsed = now - startTime;
-
-      if(elapsed < phase0){
-        const t = elapsed / phase0;
-        setTrophyPose(startX, startY, lerp(1.60, 1.42, t), lerp(0.0, 1.0, t), lerp(0, 12, t));
-        requestAnimationFrame(tick);
-        return;
-      }
-
-      if(elapsed < phase0 + phase1){
-        const t = easeOutCubic((elapsed - phase0) / phase1);
-        const bob = Math.sin((elapsed - phase0) / 85) * 7;
-        const s = lerp(1.42, 1.08, t);
-        const glow = lerp(12, 26, t);
-        setTrophyPose(startX, startY + bob, s, 1.0, glow);
-        requestAnimationFrame(tick);
-        return;
-      }
-
-      const e2 = elapsed - phase0 - phase1;
-      if(e2 < phase2){
-        const t = easeInOutQuad(e2 / phase2);
-        const x = lerp(startX, endX, t);
-        const y = lerp(startY, endY, t);
-        const s = lerp(1.08, 0.32, t);
-        const glow = lerp(26, 8, t);
-        const a = (t < 0.88) ? 1.0 : lerp(1.0, 0.0, (t - 0.88) / 0.12);
-        setTrophyPose(x, y, s, a, glow);
-        requestAnimationFrame(tick);
-        return;
-      }
-
-      trophyEl.style.display = "none";
-      trophyEl.style.opacity = "0";
-      trophyAnimating = false;
-      if(typeof onDone === "function") onDone();
-    }
-
-    requestAnimationFrame(tick);
-  });
-}
-
-async function onLevelCompleted(){
+function onLevelCompleted(){
   intermission = true;
   items.length = 0;
   spawnTimer = 0;
-
-  const levelAudio = speakLevel();
   spawnConfetti();
-  setCoachMood("trophy", 120);
-
-  playTrophyAnimation(async ()=>{
-    try{ await Promise.resolve(levelAudio); }catch(e){}
-    setCoachMood("neutral", 0);
-    try{ await Promise.resolve(nextTargetLetter()); }catch(e){}
+  speakLevel().then(()=>{}).catch(()=>{});
+  setTimeout(()=>{
+    nextTargetLetter();
     intermission = false;
-  });
+  }, 1100);
 }
 
-/* ===== Verborgen menu openen ===== */
+/* geheime menu triggers */
 let longPressTimer = null;
 const LONG_PRESS_MS = 650;
 
@@ -1398,7 +1181,6 @@ function disarmLongPress(){
 
 function bindSecretTriggers(el){
   if(!el) return;
-
   el.addEventListener("contextmenu", (e)=> e.preventDefault());
   el.addEventListener("selectstart", (e)=> e.preventDefault());
 
@@ -1436,11 +1218,9 @@ btnSave.addEventListener("click", ()=>{
   targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
   updateCoachLetter(true);
   stopAllAudio();
-  speakOpdracht(targetLetter, 1);
-  setCoachMood("neutral", 0);
+  speakOpdracht(targetLetter);
 
   saveSettings({ letters: allowedLetters.join(""), requiredHits, speedFactor });
-
   closeSettings();
 });
 
@@ -1466,14 +1246,14 @@ const car = {
   y: canvas.height * 0.88,
   tilt: 0,
   steerDx: 0,
-  w: 150,
-  h: 90,
+  w: 220,
+  h: 140,
   scale: 1.20
 };
 
 const items = [];
 const MAX_ITEMS = 2;
-const SPAWN_FRAMES_BASE = 170;
+const SPAWN_FRAMES_BASE = 185;
 
 /* weg geometrie */
 function roadWidthAt(y){
@@ -1494,31 +1274,6 @@ function laneX(lane, y){
   const e = roadEdgesAt(y);
   const laneW = e.w / 3;
   return e.left + laneW * (lane + 0.5);
-}
-
-/* auto onderaan, altijd in beeld */
-const CAR_BOTTOM_GAP = 18;
-const safeProbe = document.getElementById("safeProbe");
-function safeBottomPx(){
-  return safeProbe ? safeProbe.offsetHeight : 0;
-}
-function calcCarSize(){
-  const base = Math.min(canvas.width, canvas.height);
-  const w = Math.max(176, base * 0.300) * car.scale;
-  const h = w * 0.62;
-  return { w, h };
-}
-function updateCarFrame(){
-  const sb = safeBottomPx();
-  const { w, h } = calcCarSize();
-  car.w = w;
-  car.h = h;
-  car.y = canvas.height - sb - CAR_BOTTOM_GAP - (h / 2);
-
-  if(needCarResyncX){
-    car.x = laneX(state.lane, car.y);
-    needCarResyncX = false;
-  }
 }
 
 /* bomen */
@@ -1587,7 +1342,6 @@ function drawTrees(){
   for(const tr of trees){
     const { w, h } = treeSize(tr);
     const x = treeX(tr);
-
     const topY = tr.baseY - h;
     const shadowY = tr.baseY + h * 0.06;
 
@@ -1600,6 +1354,42 @@ function drawTrees(){
       ctx.drawImage(treeImg, x - w/2, topY, w, h);
     }
   }
+}
+
+/* auto onderaan, altijd in beeld */
+const CAR_BOTTOM_GAP = 18;
+const safeProbe = document.getElementById("safeProbe");
+
+function safeBottomPx(){
+  const h = safeProbe ? safeProbe.offsetHeight : 0;
+  return Number.isFinite(h) ? h : 0;
+}
+
+function calcCarSize(){
+  const base = Math.min(canvas.width, canvas.height);
+  const w = Math.max(176, base * 0.300) * car.scale;
+  const h = w * 0.62;
+  return { w, h };
+}
+
+function updateCarFrame(){
+  const { w, h } = calcCarSize();
+  car.w = w;
+  car.h = h;
+
+  const sb = safeBottomPx();
+  const desiredY = canvas.height - sb - CAR_BOTTOM_GAP - (h / 2);
+  const minY = (h / 2) + 6;
+  const maxY = canvas.height - (h / 2) - 6;
+  car.y = clamp(desiredY, minY, maxY);
+
+  if(!Number.isFinite(car.y)) car.y = canvas.height * 0.86;
+
+  if(needCarResyncX || !Number.isFinite(car.x)){
+    car.x = laneX(state.lane, car.y);
+    needCarResyncX = false;
+  }
+  if(!Number.isFinite(car.x)) car.x = canvas.width * 0.5;
 }
 
 /* achtergrond */
@@ -1672,7 +1462,6 @@ function drawRoad(){
 
   const H = canvas.height;
   const projScale = 0.0042;
-
   function yFromS(s){ return H / (1 + s * projScale); }
 
   const periodS = 260;
@@ -1706,7 +1495,6 @@ function drawRoad(){
 
 /* letters */
 function mix(a, b, t){ return Math.round(a + (b - a) * t); }
-
 function targetBgRgba(){
   const blue = { r:170, g:225, b:255 };
   const yellow = { r:255, g:220, b:120 };
@@ -1758,7 +1546,6 @@ function spawnLetter(){
   const lane = Math.floor(Math.random() * 3);
   const isTarget = Math.random() < 0.33;
   const letter = isTarget ? targetLetter : pickNonTargetLetter();
-
   items.push({ lane, y: -70, letter, isTarget, vy: 6.0 });
 }
 
@@ -1776,31 +1563,36 @@ function drawCar(){
   const h = car.h;
   const img = chooseCarSprite();
 
+  // extra garantie: als om wat voor reden dan ook het plaatje ontbreekt, teken altijd een zichtbare basis
   ctx.save();
   ctx.translate(car.x, car.y);
   ctx.rotate(car.tilt * 0.40);
 
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
+  // schaduw
+  ctx.fillStyle = "rgba(0,0,0,0.24)";
   ctx.beginPath();
-  drawEllipse(0, h * 0.36, w * 0.34, h * 0.22, 0);
+  drawEllipse(0, h * 0.36, w * 0.36, h * 0.24, 0);
   ctx.fill();
 
+  // basis body altijd
+  const r = Math.max(10, Math.min(22, w * 0.08));
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
+  roundRect(-w/2, -h/2, w, h, r);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.22)";
+  ctx.lineWidth = Math.max(2, w * 0.02);
+  ctx.stroke();
+
+  // raam
+  ctx.fillStyle = "rgba(0,0,0,0.20)";
+  roundRect(-w*0.20, -h*0.22, w*0.40, h*0.26, r*0.6);
+  ctx.fill();
+
+  // echte sprite eroverheen als die bestaat
   if(img.complete && img.naturalWidth){
     ctx.drawImage(img, -w/2, -h/2, w, h);
-  } else {
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    const r = Math.max(10, Math.min(22, w * 0.08));
-    roundRect(-w/2, -h/2, w, h, r);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(0,0,0,0.18)";
-    ctx.lineWidth = Math.max(2, w * 0.02);
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    roundRect(-w*0.20, -h*0.22, w*0.40, h*0.26, r*0.6);
-    ctx.fill();
   }
+
   ctx.restore();
 }
 
@@ -1808,9 +1600,8 @@ function nextTargetLetter(){
   if(!allowedLetters.length) allowedLetters = ["a"];
 
   let next = targetLetter;
-  if(allowedLetters.length === 1){
-    next = allowedLetters[0];
-  }else{
+  if(allowedLetters.length === 1) next = allowedLetters[0];
+  else{
     let guard = 0;
     while(next === targetLetter && guard < 30){
       next = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
@@ -1821,19 +1612,12 @@ function nextTargetLetter(){
   targetLetter = next;
   remainingHits = requiredHits;
   updateCoachLetter(true);
-  return speakOpdracht(targetLetter, 1);
+  return speakOpdracht(targetLetter);
 }
 
 /* update en draw */
 function update(dt){
   updateCarFrame();
-
-  if(coachMoodTimer > 0){
-    coachMoodTimer -= dt;
-    if(coachMoodTimer <= 0){
-      if(!trophyAnimating) setCoachMood("neutral", 0);
-    }
-  }
 
   if(intermission){
     roadScroll += (9.2 * WORLD_TEMPO) * dt;
@@ -1866,7 +1650,6 @@ function update(dt){
 
     if(hit){
       if(it.isTarget){
-        setCoachMood("happy", 55);
         letterTempo = clamp(letterTempo + SPEED_UP, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
 
         remainingHits = Math.max(0, remainingHits - 1);
@@ -1876,7 +1659,6 @@ function update(dt){
 
         if(remainingHits <= 0 && !trophyAnimating) onLevelCompleted();
       }else{
-        setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
         speakFout(targetLetter);
 
@@ -1891,9 +1673,7 @@ function update(dt){
       continue;
     }
 
-    if(it.y > canvas.height + 160){
-      items.splice(i, 1);
-    }
+    if(it.y > canvas.height + 160) items.splice(i, 1);
   }
 
   updateTrees(dt);
@@ -1903,7 +1683,10 @@ function draw(){
   updateCarFrame();
   drawGrass();
   drawRoad();
+
   for(const it of items) drawItem(it);
+
+  // teken de auto als laatste over de weg, zodat die nooit verdwijnt onder elementen
   drawCar();
   drawTrees();
 }
@@ -1940,19 +1723,14 @@ canvas.addEventListener("pointerdown", (e)=>{
   if(x < canvas.width / 3) state.lane = 0;
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
+
   needCarResyncX = true;
 });
-
-/* context menu blokkeren op coureur */
-document.addEventListener("contextmenu", (e)=>{
-  const coachImg = document.getElementById("coachImg");
-  if(coachImg && (e.target === coachImg || coachImg.contains(e.target))) e.preventDefault();
-}, { capture:true });
 
 /* start */
 updateCoachLetter(true);
 stopAllAudio();
-speakOpdracht(targetLetter, 1);
+speakOpdracht(targetLetter);
 requestAnimationFrame(loop);
 </script>
 
