@@ -2,13 +2,23 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>Letter Race</title>
 
 <style>
   :root{ --safe-bottom: env(safe-area-inset-bottom); }
 
-  html, body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; touch-action:none; }
+  html, body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111;
+    font-family: Arial, sans-serif;
+    touch-action:none;
+    overscroll-behavior: none;
+  }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
 
   /* Coureur rechtsboven */
@@ -136,6 +146,7 @@
   .dot.filled{
     background: rgba(0,0,0,0.55);
   }
+
   /* Trofee animatie */
   #trophy{
     position:fixed;
@@ -151,6 +162,7 @@
     transform: translate(-50%, -50%) scale(1);
     will-change: transform, opacity;
   }
+
   /* Confetti */
   #confetti{
     position:fixed;
@@ -179,7 +191,7 @@
 
   /* Verborgen menu */
   #settingsOverlay{
-    position:absolute;
+    position:fixed;
     inset:0;
     display:none;
     align-items:center;
@@ -188,25 +200,48 @@
     background: rgba(0,0,0,0.55);
     backdrop-filter: blur(6px);
     touch-action: manipulation;
+    padding:
+      calc(12px + env(safe-area-inset-top))
+      calc(12px + env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom))
+      calc(12px + env(safe-area-inset-left));
+    box-sizing: border-box;
   }
+
   #settingsPanel{
-    width:min(540px, calc(100vw - 24px));
+    width:min(560px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow:auto;
+    -webkit-overflow-scrolling: touch;
     border-radius:18px;
     touch-action: manipulation;
     background: rgba(255,255,255,0.96);
     box-shadow:0 18px 40px rgba(0,0,0,0.35);
     padding:16px 16px 14px 16px;
+    box-sizing: border-box;
   }
+
   #settingsPanel h2{
     margin:0 0 12px 0;
     font-size:18px;
     color:#111;
   }
+
+  .settingsColumns{
+    display:block;
+  }
+  .settingsCol{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
   .field{
     display:grid;
     gap:6px;
-    margin:10px 0 12px 0;
+    margin:0;
   }
+
   label{
     font-size:13px;
     color:#222;
@@ -235,6 +270,13 @@
   input[type=range]:focus{
     outline:none;
   }
+
+  #lettersGrid{
+    display:grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap:8px;
+  }
+
   .letterChip{
     display:flex;
     align-items:center;
@@ -287,6 +329,60 @@
   .btnPrimary{
     background:#111;
     color:#fff;
+  }
+
+  /* Landscape: links en rechts, alles in beeld, geen scroll */
+  @media (orientation: landscape){
+    #settingsPanel{
+      width:min(980px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      overflow:hidden;
+      padding:12px 12px 10px 12px;
+    }
+    #settingsPanel h2{
+      font-size:16px;
+      margin:0 0 8px 0;
+    }
+    .settingsColumns{
+      display:grid;
+      grid-template-columns: 1.25fr 0.85fr;
+      gap:12px;
+      align-items:start;
+    }
+    .settingsCol{
+      gap:10px;
+    }
+    #lettersGrid{
+      grid-template-columns: repeat(13, minmax(0, 1fr));
+      gap:6px;
+    }
+    .letterChip{
+      padding:7px 0;
+      border-radius:10px;
+    }
+    label{ font-size:12px; }
+    input{
+      padding:8px 10px;
+      font-size:15px;
+      border-radius:12px;
+    }
+    select{
+      padding:10px 10px !important;
+      border-radius:12px !important;
+      font-size:15px;
+    }
+    .btnRow{
+      margin-top:10px;
+    }
+    button{
+      padding:9px 12px;
+      font-size:14px;
+      border-radius:14px;
+    }
+    .hint{
+      font-size:11px;
+      line-height:1.25;
+    }
   }
 
   #muteBtn{
@@ -452,52 +548,65 @@
   <div id="settingsPanel">
     <h2>Instellingen</h2>
 
-    <div class="field">
-      <label>Aangeboden letters</label>
-      <div id="lettersGrid" style="display:grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap:8px;"></div>
+    <div class="settingsColumns">
+      <div class="settingsCol" id="settingsLeft">
 
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <button id="btnAllOn" class="btnGhost" type="button" style="flex:1;">Alles aan</button>
-        <button id="btnAllOff" class="btnGhost" type="button" style="flex:1;">Alles uit</button>
+        <div class="field">
+          <label>Aangeboden letters</label>
+          <div id="lettersGrid"></div>
+
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button id="btnAllOn" class="btnGhost" type="button" style="flex:1;">Alles aan</button>
+            <button id="btnAllOff" class="btnGhost" type="button" style="flex:1;">Alles uit</button>
+          </div>
+
+          <button id="btnTaughtLetters" class="btnGhost" type="button" style="width:100%; margin-top:8px;">Behandelde letters</button>
+
+
+          <div id="soundStatus" class="hint" style="margin-top:6px; font-weight:800; opacity:0.9;"></div>
+          <div id="lastAudio" class="hint" style="margin-top:4px; font-weight:800; opacity:0.85;"></div>
+          <div class="hint">Vink aan met welke letters je wilt spelen</div>
+        </div>
+
       </div>
 
-      <div id="soundStatus" class="hint" style="margin-top:6px; font-weight:800; opacity:0.9;"></div>
-      <div id="lastAudio" class="hint" style="margin-top:4px; font-weight:800; opacity:0.85;"></div>
-      <div class="hint">Vink aan met welke letters je wilt spelen</div>
-    </div>
+      <div class="settingsCol" id="settingsRight">
 
-    <div class="field">
-      <label for="speedSlider">Lettersnelheid</label>
-      <input id="speedSlider" type="range" min="55" max="100" step="5" />
-      <div id="speedHint" class="hint" style="font-weight:800; opacity:0.9;"></div>
-      <div class="hint">100% is normaal, lager is rustiger</div>
-    </div>
+        <div class="field">
+          <label for="speedSlider">Lettersnelheid</label>
+          <input id="speedSlider" type="range" min="55" max="100" step="5" />
+          <div id="speedHint" class="hint" style="font-weight:800; opacity:0.9;"></div>
+          <div class="hint">100% is normaal, lager is rustiger</div>
+        </div>
 
-    <div class="field">
-      <label for="hitsInput">Aantal keer goed per letter</label>
-      <input id="hitsInput" type="number" min="1" max="20" inputmode="numeric" />
-      <div class="hint">Bijvoorbeeld 5, pas daarna kiest het spel een nieuwe letter</div>
-    </div>
+        <div class="field">
+          <label for="hitsInput">Aantal keer goed per letter</label>
+          <input id="hitsInput" type="number" min="1" max="20" inputmode="numeric" />
+          <div class="hint">Bijvoorbeeld 5, pas daarna kiest het spel een nieuwe letter</div>
+        </div>
 
-    <div class="field">
-      <label>Spraak</label>
-      <select id="speechMode" style="width:100%; padding:12px 12px; border-radius:12px; border:2px solid rgba(0,0,0,0.12); font-weight:800;">
-        <option value="calm">Rustig, bijhouden</option>
-        <option value="full">Veel praten</option>
-      </select>
-      <div class="hint">Rustig is fijner als het spel snel gaat</div>
-    </div>
+        <div class="field">
+          <label>Spraak</label>
+          <select id="speechMode" style="width:100%; padding:12px 12px; border-radius:12px; border:2px solid rgba(0,0,0,0.12); font-weight:800;">
+            <option value="calm">Rustig, bijhouden</option>
+            <option value="full">Veel praten</option>
+          </select>
+          <div class="hint">Rustig is fijner als het spel snel gaat</div>
+        </div>
 
-    <div class="field">
-      <label>Stemmen</label>
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
-          <input id="soundToggle" type="checkbox" style="width:22px; height:22px;" />
-          Aan
-        </label>
-        <button id="btnTestSound" class="btn secondary" type="button">Test</button>
+        <div class="field">
+          <label>Stemmen</label>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
+              <input id="soundToggle" type="checkbox" style="width:22px; height:22px;" />
+              Aan
+            </label>
+            <button id="btnTestSound" class="btn secondary" type="button">Test</button>
+          </div>
+          <div class="hint">Test werkt pas nadat je 1x het scherm hebt aangeraakt</div>
+        </div>
+
       </div>
-      <div class="hint">Test werkt pas nadat je 1x het scherm hebt aangeraakt</div>
     </div>
 
     <div class="btnRow">
@@ -551,11 +660,20 @@ function toast(msg){
 
 canvas.style.touchAction = "none";
 
+/* extra zoom blokkade */
+document.addEventListener("dblclick", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("touchstart", (e)=>{
+  if(e.touches && e.touches.length > 1) e.preventDefault();
+}, { passive:false });
+
+let needCarResync = true;
+
 function resize(){
   const vw = window.visualViewport ? Math.round(window.visualViewport.width) : innerWidth;
   const vh = window.visualViewport ? Math.round(window.visualViewport.height) : innerHeight;
   canvas.width = vw;
   canvas.height = vh;
+  needCarResync = true;
 }
 addEventListener("resize", resize);
 if(window.visualViewport){
@@ -563,18 +681,48 @@ if(window.visualViewport){
 }
 resize();
 
-/* ANTI_ZOOM_GUARD
-   voorkomt pinch zoom en dubbel tik zoom op Android en iOS
-*/
+/* ANTI_ZOOM_GUARD */
 document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
+
+
+/* ROBUUSTE_IPAD_ANTI_ZOOM */
+(function(){
+  const opts = { passive:false, capture:true };
+
+  // blokkeer pinch, ook als iOS "gesture" events soms ontbreken
+  document.addEventListener("touchstart", (e)=>{
+    if(e.touches && e.touches.length > 1){
+      e.preventDefault();
+    }
+  }, opts);
+
+  document.addEventListener("touchmove", (e)=>{
+    if(settingsOverlay && settingsOverlay.style.display === "flex") return;
+    if(e.touches && e.touches.length > 1){
+      e.preventDefault();
+    }
+  }, opts);
+
+  // blokkeer zoom via toetsenbord (bij externe toetsenborden)
+  document.addEventListener("keydown", (e)=>{
+    const k = (e.key || "").toLowerCase();
+    if((e.ctrlKey || e.metaKey) && (k === "+" || k === "=" || k === "-" || k === "_" || k === "0")){
+      e.preventDefault();
+    }
+  }, { capture:true });
+
+  // extra zekerheid, iOS kan soms alsnog scroll positie verschuiven bij focus
+  document.addEventListener("focusin", ()=>{
+    try{ window.scrollTo(0,0); }catch(e){}
+  }, { capture:true });
+})();
 
 let lastTouchEnd = 0;
 document.addEventListener("touchend", (e)=>{
   const now = Date.now();
 
-  // Als het docent menu open is, wil je juist snel kunnen tikken op letters
   if(settingsOverlay && settingsOverlay.style.display === "flex"){
     lastTouchEnd = now;
     return;
@@ -586,12 +734,13 @@ document.addEventListener("touchend", (e)=>{
   lastTouchEnd = now;
 }, { passive:false });
 
+/* blokkeer scroll en zoom, maar laat docent menu netjes werken */
 document.addEventListener("touchmove", (e)=>{
-  // geen scroll, geen pinch
+  if(settingsOverlay && settingsOverlay.style.display === "flex") return;
   if(e.touches && e.touches.length > 1) e.preventDefault();
+  else e.preventDefault();
 }, { passive:false });
 
-// blokkeer ctrl plus wheel zoom (laptops)
 document.addEventListener("wheel", (e)=>{
   if(e.ctrlKey) e.preventDefault();
 }, { passive:false });
@@ -620,12 +769,12 @@ const btnSave = document.getElementById("saveSettings");
 const btnClose = document.getElementById("closeSettings");
 const btnAllOn = document.getElementById("btnAllOn");
 const btnAllOff = document.getElementById("btnAllOff");
+const btnTaughtLetters = document.getElementById("btnTaughtLetters");
 
 /* ===== Docent menu: open en sluit ===== */
 function openSettings(){
   if(!settingsOverlay) return;
 
-  // vul UI met huidige waarden
   if(hitsInput) hitsInput.value = String(requiredHits || 5);
   if(typeof buildLettersGrid === "function") buildLettersGrid();
 
@@ -654,14 +803,12 @@ function closeSettings(){
 }
 
 if(settingsOverlay){
-  // klik buiten het paneel sluit
   const evt = HAS_POINTER ? "pointerdown" : "touchstart";
   settingsOverlay.addEventListener(evt, (e)=>{
     if(e.target === settingsOverlay) closeSettings();
   }, { passive:false });
 }
 
-// laptop: ESC sluit, Ctrl plus Alt plus S opent
 addEventListener("keydown", (e)=>{
   const k = (e.key || "").toLowerCase();
   if(k === "escape" && settingsOverlay && settingsOverlay.style.display === "flex"){
@@ -709,7 +856,6 @@ const BGM_MUTE_KEY = "letter_race_music_on_v1";
 let bgm = null;
 let musicOn = true;
 
-/* MUTE_BUTTON_BIND: mute knop blijft 🎵, bij uit komt er een rood kruis */
 function updateMuteBtnUi(){
   const b = document.getElementById("muteBtn");
   if(!b) return;
@@ -1081,8 +1227,19 @@ function saveSettings(obj){
   }catch(e){}
 }
 
-/* ===== Letterkeuze via vinkjes ===== */
 const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
+
+
+/* ===== Behandelde letters ===== */
+const TAUGHT_LETTERS = ["w","s","g","h","k","l","v","m","b"];
+
+function setLettersTo(list){
+  const set = new Set((list || []).map(ch => String(ch || "").toLowerCase()));
+  for(const ref of letterChipRefs){
+    ref.cb.checked = set.has(ref.cb.value);
+    ref.sync();
+  }
+}
 
 const letterChipRefs = [];
 
@@ -1095,6 +1252,11 @@ function setAllLetters(checked){
 
 if(btnAllOn) onPress(btnAllOn, ()=> setAllLetters(true));
 if(btnAllOff) onPress(btnAllOff, ()=> setAllLetters(false));
+
+if(btnTaughtLetters) onPress(btnTaughtLetters, ()=>{
+  setLettersTo(TAUGHT_LETTERS);
+  if(typeof toast === "function") toast("Behandelde letters gekozen");
+});
 
 function buildLettersGrid(){
   if(!lettersGrid) return;
@@ -1151,15 +1313,15 @@ function getCheckedLetters(){
   return out.length ? out : ["a"];
 }
 
-/* standaard c,x,y uit */
 const FORCE_OFF_LETTERS = ["c","x","y"];
 const MIGRATION_CXY_KEY = "letter_race_migrate_cxy_off_v1";
 
-let allowedLetters = DEFAULT_POOL.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+let allowedLetters = TAUGHT_LETTERS.slice();
 let requiredHits = 5;
 
-/* snelheidsslider */
-let speedFactor = 1.0;
+/* iets rustiger als standaard */
+let speedFactor = 0.70;
+
 const speedSlider = document.getElementById("speedSlider");
 const speedHint = document.getElementById("speedHint");
 function updateSpeedUi(){
@@ -1191,7 +1353,6 @@ if(saved){
   }
 }
 
-/* MIGRATIE: bestaande spelers krijgen c,x,y eenmalig uit */
 try{
   const migrated = localStorage.getItem(MIGRATION_CXY_KEY) === "1";
   if(!migrated){
@@ -1209,7 +1370,6 @@ try{
   if(!allowedLetters.length) allowedLetters = ["a"];
 }
 
-/* doelletter blijft, wisselt pas na requiredHits keer goed */
 let targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
 let remainingHits = requiredHits;
 
@@ -1293,7 +1453,7 @@ function spawnConfetti(){
   }, 1250);
 }
 
-/* ===== Trofee animatie: groot midden, uitzoom naar coureur, dan nieuwe letter ===== */
+/* ===== Trofee animatie ===== */
 let trophyAnimating = false;
 let intermission = false;
 
@@ -1399,11 +1559,10 @@ async function onLevelCompleted(){
   });
 }
 
-/* ===== Verborgen menu openen: 3 snelle tikken of lang indrukken ===== */
+/* ===== Verborgen menu openen ===== */
 let longPressTimer = null;
 const LONG_PRESS_MS = 650;
 
-/* 3x snel tikken */
 let tapCount = 0;
 let tapTimer = null;
 const TAP_WINDOW_MS = 520;
@@ -1496,11 +1655,12 @@ let roadScroll = 0;
 
 const WORLD_TEMPO = 1.0;
 
-let letterTempo = 1.20;
-const LETTER_TEMPO_MIN = 1.20;
+/* start iets trager */
+let letterTempo = 1.05;
+const LETTER_TEMPO_MIN = 1.05;
 const LETTER_TEMPO_MAX = 3.00;
 
-const SPEED_UP = 0.12;
+const SPEED_UP = 0.10;
 const SPEED_DOWN = 0.10;
 
 const state = { lane: 1, lastTime: performance.now() };
@@ -1542,13 +1702,8 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* auto onderaan netjes zichtbaar, werkt in portrait en landscape */
+/* auto altijd onderaan zichtbaar */
 const CAR_BOTTOM_GAP = 18;
-
-function getSafeBottom(){
-  const v = getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom");
-  return parseFloat(v) || 0;
-}
 
 function calcCarSize(){
   const base = Math.min(canvas.width, canvas.height);
@@ -1557,21 +1712,22 @@ function calcCarSize(){
   return { w, h };
 }
 
+function getSafeBottom(){
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom");
+  return parseFloat(v) || 0;
+}
+
 function syncCarBottom(){
   const sb = getSafeBottom();
   const { h } = calcCarSize();
   car.y = canvas.height - sb - CAR_BOTTOM_GAP - (h / 2);
-  car.x = laneX(state.lane, car.y);
 }
 
-/* laat car ook kloppen na draaien of adresbalk veranderingen */
-addEventListener("resize", ()=> syncCarBottom());
 if(window.visualViewport){
-  window.visualViewport.addEventListener("resize", ()=> syncCarBottom());
+  window.visualViewport.addEventListener("resize", ()=>{ needCarResync = true; });
 }
-syncCarBottom();
 
-/* bomen, vaste instellingen */
+/* bomen */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -1674,7 +1830,7 @@ function drawGrass(){
   }
 }
 
-/* weg met stabiele middenstrepen */
+/* weg */
 function drawRoad(){
   const pts = [];
   for(let y=0; y<=canvas.height+28; y+=28){
@@ -1876,7 +2032,6 @@ function drawCar(){
   ctx.restore();
 }
 
-/* ===== doelwissel op basis van aantal keer goed ===== */
 function nextTargetLetter(){
   if(!allowedLetters.length) allowedLetters = ["a"];
 
@@ -1945,10 +2100,7 @@ function update(dt){
         updateProgressDots();
         stopAllAudio();
         speakGoed(targetLetter);
-        if(remainingHits > 0 && speechMode === "full"){
-          const attemptNumber = (requiredHits - remainingHits) + 1;
-          if(attemptNumber === 3 || attemptNumber === 5) speakOpdracht(targetLetter, attemptNumber);
-        }
+
         if(remainingHits <= 0 && !trophyAnimating){
           onLevelCompleted();
         }
@@ -1988,6 +2140,11 @@ function loop(now){
   const dt = Math.min(3, (now - state.lastTime) / (1000/60));
   state.lastTime = now;
 
+  if(needCarResync){
+    syncCarBottom();
+    needCarResync = false;
+  }
+
   if(energy > 0 && settingsOverlay.style.display !== "flex" && !trophyAnimating) update(dt);
   draw();
 
@@ -1999,15 +2156,12 @@ addEventListener("keydown", (e)=>{
   if(e.key === "ArrowLeft"){
     e.preventDefault();
     state.lane = Math.max(0, state.lane - 1);
-    syncCarBottom();
   }else if(e.key === "ArrowRight"){
     e.preventDefault();
     state.lane = Math.min(2, state.lane + 1);
-    syncCarBottom();
   }
 });
 
-/* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
   unlockAudio();
   startBgm();
@@ -2018,21 +2172,12 @@ canvas.addEventListener("pointerdown", (e)=>{
   if(x < canvas.width / 3) state.lane = 0;
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
-
-  syncCarBottom();
 });
 
-/* context menu blokkeren op coureur */
 document.addEventListener("contextmenu", (e)=>{
   const coachImg = document.getElementById("coachImg");
   if(coachImg && (e.target === coachImg || coachImg.contains(e.target))) e.preventDefault();
 }, { capture:true });
-
-/* zoom blokkeren */
-document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
-document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
-document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
-document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
 
 /* start */
 updateCoachLetter(true);
